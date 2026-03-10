@@ -156,25 +156,6 @@ enum Commands {
 }
 ```
 
-
-### Rust 2024 Edition
-
-```rust
-// Async traits work natively (no async_trait crate needed)
-pub trait Fetcher {
-    async fn fetch(&self, url: &str) -> Result<String>;
-}
-
-// Let chains: cleaner nested conditions
-if let Some(x) = get_value()
-    && x > 0
-    && let y = x * 2
-    && y < 100
-{
-    println!("All conditions met: {}", y);
-}
-```
-
 ### Anti-Patterns to Avoid
 
 | Anti-Pattern | Better Approach |
