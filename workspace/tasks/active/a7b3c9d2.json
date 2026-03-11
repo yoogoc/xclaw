@@ -1,0 +1,11 @@
+{
+  "task_id": "a7b3c9d2-1234-5678-9abc-def012345678",
+  "short_id": "a7b3c9d2",
+  "title": "Test Task",
+  "description": "This is a test task to verify Agent loop functionality",
+  "status": "active",
+  "assigned_to": "executor",
+  "created_at": "2026-03-11T05:54:30.238957Z",
+  "updated_at": "2026-03-11T05:54:31.256784Z",
+  "progress": 0.0
+}
