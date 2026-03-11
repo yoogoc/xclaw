@@ -1,0 +1,23 @@
+llms:
+  - name: mock
+    model: mock
+
+agents:
+  - name: executor
+    llm: mock
+    default_tools: false
+    tools: [task_read, task_claim, task_progress]
+    default_skills: false
+    skills: []
+
+channels:
+  - name: test-channel
+    type: mock
+    token: mock-token
+
+chat_rooms:
+  - type: mock
+    bindings:
+      - agent: executor
+        channel: test-channel
+        requireMention: false
