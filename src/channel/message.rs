@@ -1,0 +1,47 @@
+mod attachment;
+
+use std::pin::Pin;
+use chrono::{DateTime, Utc};
+use futures::Stream;
+use uuid::Uuid;
+use crate::channel::message::attachment::IncomingAttachment;
+
+/// A message received from an external channel.
+#[derive(Debug, Clone)]
+pub struct IncomingMessage {
+    /// Unique message ID.
+    pub id: Uuid,
+    /// Channel this message came from.
+    pub channel: String,
+    /// User identifier within the channel.
+    pub user_id: String,
+    /// Optional display name.
+    pub user_name: Option<String>,
+    /// Message content.
+    pub content: String,
+    /// Thread/conversation ID for threaded conversations.
+    pub thread_id: Option<String>,
+    /// When the message was received.
+    pub received_at: DateTime<Utc>,
+    /// Channel-specific metadata.
+    pub metadata: serde_json::Value,
+    /// IANA timezone string from the client (e.g. "America/New_York").
+    pub timezone: Option<String>,
+    /// File or media attachments on this message.
+    pub attachments: Vec<IncomingAttachment>,
+}
+
+pub type MessageStream = Pin<Box<dyn Stream<Item = IncomingMessage> + Send>>;
+
+/// Response to send back to a channel.
+#[derive(Debug, Clone)]
+pub struct OutgoingResponse {
+    /// The content to send.
+    pub content: String,
+    /// Optional thread ID to reply in.
+    pub thread_id: Option<String>,
+    /// Optional file paths to attach.
+    pub attachments: Vec<String>,
+    /// Channel-specific metadata for the response.
+    pub metadata: serde_json::Value,
+}
