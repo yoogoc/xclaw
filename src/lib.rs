@@ -1,14 +1,13 @@
 pub mod agent;
 pub mod channel;
-pub mod channels;
-pub mod chat_room;
+pub mod binding;
 pub mod config;
 pub mod hooks;
 pub mod llm;
-pub mod llm_provider;
 pub mod memory;
 pub mod skills;
 pub mod supervisor;
 pub mod tools;
 pub mod session;
 pub mod storage;
+pub mod message;
