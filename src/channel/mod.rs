@@ -1,4 +1,5 @@
 mod message;
+mod channel;
 
 pub use message::{IncomingMessage, MessageStream, OutgoingResponse};
 
