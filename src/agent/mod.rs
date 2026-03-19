@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 use rig::completion::CompletionModel;
 use crate::agent::config::AgentLoopConfig;
@@ -5,13 +6,14 @@ use crate::agent::workspace::Workspace;
 use crate::hooks::HookRegistry;
 use crate::llm::LlmProvider;
 use crate::skills::SkillRegistry;
-use crate::tools::ToolRegistry;
+use crate::tools::{Tool, ToolRegistry};
 use crate::storage::Database;
 
 mod heartbeat;
 mod workspace;
 mod config;
 
+// 不能直接使用rig的agent，因为我们要自定义tool call的逻辑
 pub struct Agent<M: CompletionModel> {
     pub storage: Option<Arc<Database>>,
 
@@ -26,4 +28,10 @@ pub struct Agent<M: CompletionModel> {
     pub heartbeat: Option<Arc<heartbeat::Heartbeat>>,
 
     pub config: AgentLoopConfig,
+}
+
+impl<M: CompletionModel> Agent<M> {
+    pub async fn tools(&self) -> HashMap<String, Arc<dyn Tool>> {
+        self.tools.tools().await.clone()
+    }
 }
