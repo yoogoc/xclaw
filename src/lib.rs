@@ -11,3 +11,8 @@ pub mod tools;
 pub mod session;
 pub mod storage;
 pub mod message;
+
+#[macro_use]
+extern crate log;
+#[macro_use]
+extern crate async_trait;
