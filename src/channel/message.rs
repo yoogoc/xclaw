@@ -45,3 +45,13 @@ pub struct OutgoingResponse {
     /// Channel-specific metadata for the response.
     pub metadata: serde_json::Value,
 }
+
+/// Message to send through a channel
+#[derive(Debug, Clone)]
+pub struct SendMessage {
+    pub content: String,
+    pub recipient: String,
+    pub subject: Option<String>,
+    /// Platform thread identifier for threaded replies (e.g. Slack `thread_ts`).
+    pub thread_ts: Option<String>,
+}

@@ -4,7 +4,7 @@ mod loop_type;
 use crate::agent::Agent;
 use crate::binding::loop_outcome::LoopOutcome;
 use crate::binding::loop_type::LoopType;
-use crate::channel::{Channel, IncomingMessage};
+use crate::channel::{Channel, ChannelManager, IncomingMessage};
 use crate::llm::{FinishReason, LLMResponse};
 use crate::session::PendingApproval;
 use crate::tools::ApprovalRequirement;
@@ -15,15 +15,15 @@ use rig::streaming::StreamedAssistantContent;
 use std::sync::Arc;
 use uuid::Uuid;
 
-pub struct Binding<M: CompletionModel> {
+pub struct Binding<M: CompletionModel, C: Channel> {
     agent: Arc<Agent<M>>,
-    channel: Arc<Channel>,
+    channel: Arc<ChannelManager<C>>,
 
     user_tz: chrono_tz::Tz,
 }
 
-impl<M: CompletionModel> Binding<M> {
-    pub fn new(agent: Arc<Agent<M>>, channel: Arc<Channel>, tz: chrono_tz::Tz) -> Self {
+impl<M: CompletionModel, C: Channel> Binding<M, C> {
+    pub fn new(agent: Arc<Agent<M>>, channel: Arc<ChannelManager<C>>, tz: chrono_tz::Tz) -> Self {
         Self {
             agent,
             channel,
@@ -32,7 +32,7 @@ impl<M: CompletionModel> Binding<M> {
     }
 }
 
-impl<M: CompletionModel> Binding<M> {
+impl<M: CompletionModel, C: Channel> Binding<M, C> {
     pub async fn start(&self) -> anyhow::Result<()> {
         let mut stream = self.channel.receive().await?;
 
