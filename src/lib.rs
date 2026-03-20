@@ -12,6 +12,8 @@ pub mod session;
 pub mod storage;
 pub mod message;
 
+pub mod utils;
+
 #[macro_use]
 extern crate log;
 #[macro_use]

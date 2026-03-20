@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 use crate::message::ContentPart;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -30,10 +31,17 @@ pub enum TurnState {
 /// A single turn (request/response pair) in a thread.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Turn {
+    /// Unique ID.
+    pub id: Uuid,
+    /// Unique thread ID.
+    pub thread_id: Uuid,
+    /// Unique session ID.
+    pub session_id: Uuid,
     /// Turn number (0-indexed).
     pub turn_number: usize,
     /// User input that started this turn.
     pub user_input: String,
+    pub thinking: Option<String>,
     /// Agent response (if completed).
     pub response: Option<String>,
     /// Tool calls made during this turn.
@@ -53,4 +61,74 @@ pub struct Turn {
     pub image_content_parts: Vec<ContentPart>,
 
     pub current_tool_iterations: usize,
+}
+
+impl Turn {
+    /// Create a new turn.
+    pub fn new(session_id: Uuid, thread_id: Uuid, turn_number: usize, user_input: impl Into<String>) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            thread_id,
+            session_id,
+            turn_number,
+            user_input: user_input.into(),
+            thinking: None,
+            response: None,
+            tool_calls: Vec::new(),
+            state: TurnState::Processing,
+            started_at: Utc::now(),
+            completed_at: None,
+            error: None,
+            image_content_parts: Vec::new(),
+            current_tool_iterations: 0,
+        }
+    }
+
+    /// Complete this turn.
+    pub fn complete(&mut self, response: impl Into<String>) {
+        self.response = Some(response.into());
+        self.state = TurnState::Completed;
+        self.completed_at = Some(Utc::now());
+        // Free image data — only needed for the initial LLM call, not subsequent turns
+        self.image_content_parts.clear();
+    }
+
+    /// Fail this turn.
+    pub fn fail(&mut self, error: impl Into<String>) {
+        self.error = Some(error.into());
+        self.state = TurnState::Failed;
+        self.completed_at = Some(Utc::now());
+        self.image_content_parts.clear();
+    }
+
+    /// Interrupt this turn.
+    pub fn interrupt(&mut self) {
+        self.state = TurnState::Interrupted;
+        self.completed_at = Some(Utc::now());
+        self.image_content_parts.clear();
+    }
+
+    /// Record a tool call.
+    pub fn record_tool_call(&mut self, name: impl Into<String>, params: serde_json::Value) {
+        self.tool_calls.push(TurnToolCall {
+            name: name.into(),
+            parameters: params,
+            result: None,
+            error: None,
+        });
+    }
+
+    /// Record tool call result.
+    pub fn record_tool_result(&mut self, result: serde_json::Value) {
+        if let Some(call) = self.tool_calls.last_mut() {
+            call.result = Some(result);
+        }
+    }
+
+    /// Record tool call error.
+    pub fn record_tool_error(&mut self, error: impl Into<String>) {
+        if let Some(call) = self.tool_calls.last_mut() {
+            call.error = Some(error.into());
+        }
+    }
 }

@@ -4,6 +4,7 @@ mod channel;
 pub use message::{IncomingMessage, MessageStream, OutgoingResponse};
 pub use channel::*;
 
+// 十分明确，一个Channel只接收一种类型的消息
 pub struct ChannelManager<C: Channel> {
     inner: C,
 }

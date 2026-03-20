@@ -16,6 +16,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 pub struct Binding<M: CompletionModel, C: Channel> {
+    // id: Uuid,
     agent: Arc<Agent<M>>,
     channel: Arc<ChannelManager<C>>,
 
@@ -25,6 +26,7 @@ pub struct Binding<M: CompletionModel, C: Channel> {
 impl<M: CompletionModel, C: Channel> Binding<M, C> {
     pub fn new(agent: Arc<Agent<M>>, channel: Arc<ChannelManager<C>>, tz: chrono_tz::Tz) -> Self {
         Self {
+            // id: Uuid::new_v4(),
             agent,
             channel,
             user_tz: tz,
