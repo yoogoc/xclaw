@@ -88,6 +88,8 @@ impl DiscordChannel {
             .event_handler(handler)
             .await?;
 
+        info!("connected to discord");
+
         *self.client.write().await = Some(client);
         Ok(())
     }

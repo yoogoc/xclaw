@@ -48,6 +48,7 @@ impl<M: CompletionModel, C: Channel> Binding<M, C> {
 
 impl<M: CompletionModel, C: Channel> Binding<M, C> {
     pub async fn start(&self) -> anyhow::Result<()> {
+        info!("start binding({})", &self.binding_id);
         let mut stream = self.channel.receive().await?;
 
         while let Some(message) = stream.next().await {
