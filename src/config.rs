@@ -66,16 +66,44 @@ pub struct ChatRoomConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BindingConfig {
+    #[serde(default = "BindingConfig::default_binding_id")]
+    pub binding_id: String,
     pub agent: String,
     pub channel: String,
     #[serde(rename = "requireMention", default = "default_false")]
     pub require_mention: bool,
 }
 
-fn default_true() -> bool { true }
-fn default_false() -> bool { false }
-fn default_anthropic_url() -> String { "https://api.anthropic.com".into() }
-fn default_openai_url() -> String { "https://api.openai.com".into() }
+impl BindingConfig {
+    fn default_binding_id() -> String {
+        // Default: derive binding_id from agent name
+        // This ensures each binding gets a stable ID if not explicitly set
+        String::new()
+    }
+
+    /// Get the effective binding_id for this binding.
+    /// Returns the configured binding_id, or derives it from agent+channel.
+    pub fn get_binding_id(&self) -> String {
+        if self.binding_id.is_empty() {
+            format!("{}@{}", self.agent, self.channel)
+        } else {
+            self.binding_id.clone()
+        }
+    }
+}
+
+fn default_true() -> bool {
+    true
+}
+fn default_false() -> bool {
+    false
+}
+fn default_anthropic_url() -> String {
+    "https://api.anthropic.com".into()
+}
+fn default_openai_url() -> String {
+    "https://api.openai.com".into()
+}
 
 impl Config {
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self> {
@@ -86,13 +114,13 @@ impl Config {
         for llm in &mut config.llms {
             if let Some(anthropic) = &mut llm.anthropic {
                 if anthropic.token.starts_with("${") && anthropic.token.ends_with("}") {
-                    let var_name = &anthropic.token[2..anthropic.token.len()-1];
+                    let var_name = &anthropic.token[2..anthropic.token.len() - 1];
                     anthropic.token = std::env::var(var_name)?;
                 }
             }
             if let Some(openai) = &mut llm.openai {
                 if openai.token.starts_with("${") && openai.token.ends_with("}") {
-                    let var_name = &openai.token[2..openai.token.len()-1];
+                    let var_name = &openai.token[2..openai.token.len() - 1];
                     openai.token = std::env::var(var_name)?;
                 }
             }

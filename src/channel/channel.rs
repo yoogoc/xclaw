@@ -1,5 +1,5 @@
-use crate::channel::{IncomingMessage, MessageStream, OutgoingResponse};
 use crate::channel::message::SendMessage;
+use crate::channel::{IncomingMessage, MessageStream, OutgoingResponse};
 
 #[async_trait]
 pub trait Channel: Send + Sync {
@@ -15,7 +15,11 @@ pub trait Channel: Send + Sync {
         todo!()
     }
 
-    async fn send(&self, msg: &IncomingMessage, response: OutgoingResponse) -> anyhow::Result<MessageStream> {
+    async fn send(
+        &self,
+        msg: &IncomingMessage,
+        response: OutgoingResponse,
+    ) -> anyhow::Result<MessageStream> {
         todo!()
     }
 
@@ -24,10 +28,14 @@ pub trait Channel: Send + Sync {
     /// `channel_id` is the platform channel/conversation identifier (e.g. Discord channel ID).
     /// `message_id` is the platform-scoped message identifier (e.g. `discord_<snowflake>`).
     /// `emoji` is the Unicode emoji to react with (e.g. "👀", "✅").
-    async fn add_reaction(&self, _channel_id: &str, _message_id: &str, _emoji: &str) -> anyhow::Result<()> {
+    async fn add_reaction(
+        &self,
+        _channel_id: &str,
+        _message_id: &str,
+        _emoji: &str,
+    ) -> anyhow::Result<()> {
         Ok(())
     }
-
 
     /// Whether this channel supports progressive message updates via draft edits.
     fn supports_draft_updates(&self) -> bool {
@@ -44,12 +52,22 @@ pub trait Channel: Send + Sync {
     /// Returns `Ok(None)` to keep the current draft message ID, or
     /// `Ok(Some(new_id))` when a continuation message was created
     /// (e.g. after hitting a platform edit-count cap).
-    async fn update_draft(&self, _recipient: &str, _message_id: &str, _text: &str) -> anyhow::Result<Option<String>> {
+    async fn update_draft(
+        &self,
+        _recipient: &str,
+        _message_id: &str,
+        _text: &str,
+    ) -> anyhow::Result<Option<String>> {
         Ok(None)
     }
 
     /// Finalize a draft with the complete response (e.g. apply Markdown formatting).
-    async fn finalize_draft(&self, _recipient: &str, _message_id: &str, _text: &str) -> anyhow::Result<()> {
+    async fn finalize_draft(
+        &self,
+        _recipient: &str,
+        _message_id: &str,
+        _text: &str,
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 }

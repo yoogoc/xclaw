@@ -1,10 +1,10 @@
-use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use crate::message::{ChatMessage, Role, ToolCall};
 use crate::session::approval::PendingApproval;
 use crate::session::turn::Turn;
 use crate::utils::truncate_preview;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 /// State of a thread.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -28,6 +28,10 @@ pub struct Thread {
     pub id: Uuid,
     /// Parent session ID.
     pub session_id: Uuid,
+    /// External routing identity.
+    pub user_id: String,
+    pub channel: String,
+    pub external_thread_id: Option<String>,
     /// Current state.
     pub state: ThreadState,
     /// Turns in this thread.
@@ -38,7 +42,7 @@ pub struct Thread {
     pub updated_at: DateTime<Utc>,
     /// Thread metadata (e.g., title, tags).
     pub metadata: serde_json::Value,
-    /// Pending approval request (when state is AwaitingApproval).
+    /// Pending approval requests (when state is AwaitingApproval).
     #[serde(default)]
     pub pending_approvals: Vec<PendingApproval>,
 }
@@ -50,6 +54,9 @@ impl Thread {
         Self {
             id: Uuid::new_v4(),
             session_id,
+            user_id: String::new(),
+            channel: String::new(),
+            external_thread_id: None,
             state: ThreadState::Idle,
             turns: Vec::new(),
             created_at: now,
@@ -59,12 +66,20 @@ impl Thread {
         }
     }
 
-    /// Create a thread with a specific ID (for DB hydration).
-    pub fn with_id(id: Uuid, session_id: Uuid) -> Self {
+    /// Create a thread with routing identities.
+    pub fn with_routing(
+        session_id: Uuid,
+        user_id: impl Into<String>,
+        channel: impl Into<String>,
+        external_thread_id: Option<String>,
+    ) -> Self {
         let now = Utc::now();
         Self {
-            id,
+            id: Uuid::new_v4(),
             session_id,
+            user_id: user_id.into(),
+            channel: channel.into(),
+            external_thread_id,
             state: ThreadState::Idle,
             turns: Vec::new(),
             created_at: now,
@@ -262,7 +277,7 @@ impl Thread {
 
         while let Some(msg) = iter.next() {
             if msg.role == Role::User {
-                let mut turn = Turn::new(self.session_id,self.id,turn_number, &msg.content);
+                let mut turn = Turn::new(self.session_id, self.id, turn_number, &msg.content);
 
                 // Consume tool call sequences (assistant_with_tool_calls + tool_results).
                 // A single turn may contain multiple rounds of tool calls, so we
@@ -304,9 +319,9 @@ impl Thread {
                 }
 
                 // Check if next is the final assistant response for this turn
-                let is_final_assistant = iter.peek().is_some_and(|n| {
-                    n.role == Role::Assistant && n.tool_calls.is_none()
-                });
+                let is_final_assistant = iter
+                    .peek()
+                    .is_some_and(|n| n.role == Role::Assistant && n.tool_calls.is_none());
                 if is_final_assistant && let Some(response) = iter.next() {
                     turn.complete(&response.content);
                 }

@@ -1,27 +1,27 @@
+mod approval;
 mod manager;
 mod thread;
 mod turn;
-mod approval;
 
-use std::collections::{HashMap, HashSet};
+pub use approval::*;
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 pub use manager::*;
+use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
 pub use thread::*;
 pub use turn::*;
-pub use approval::*;
+use uuid::Uuid;
 
 /// A session containing one or more threads.
-/// 一个session对应一个binding，
+/// 一个session对应一个binding（agent@channel），
 /// 一个session拥有多个thread，
 /// 一个thread有多个turn（一轮对话: question, thinking, tool_call, answer）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Session {
     /// Unique session ID.
     pub id: Uuid,
-    /// chat ID that owns this session.
-    pub chat_id: ChatId,
+    /// Binding identifier that owns this session (e.g. "main@main").
+    pub binding_id: String,
     /// Active thread ID.
     pub active_thread: Option<Uuid>,
     /// All threads in this session.
@@ -38,12 +38,12 @@ pub struct Session {
 }
 
 impl Session {
-    /// Create a new session.
-    pub fn new(chat_id: impl Into<ChatId>) -> Self {
+    /// Create a new session for a binding.
+    pub fn new(binding_id: impl Into<String>) -> Self {
         let now = Utc::now();
         Self {
             id: Uuid::new_v4(),
-            chat_id: chat_id.into(),
+            binding_id: binding_id.into(),
             active_thread: None,
             threads: HashMap::new(),
             created_at: now,

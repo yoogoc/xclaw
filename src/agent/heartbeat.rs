@@ -1,2 +1,1 @@
-pub struct Heartbeat {
-}
+pub struct Heartbeat {}

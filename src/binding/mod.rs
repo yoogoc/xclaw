@@ -6,7 +6,7 @@ use crate::binding::loop_outcome::LoopOutcome;
 use crate::binding::loop_type::LoopType;
 use crate::channel::{Channel, ChannelManager, IncomingMessage};
 use crate::llm::{FinishReason, LLMResponse};
-use crate::session::PendingApproval;
+use crate::session::{PendingApproval, SessionManager};
 use crate::tools::ApprovalRequirement;
 use futures::StreamExt;
 use rig::OneOrMany;
@@ -16,19 +16,26 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 pub struct Binding<M: CompletionModel, C: Channel> {
-    // id: Uuid,
     agent: Arc<Agent<M>>,
     channel: Arc<ChannelManager<C>>,
-
+    session_manager: Arc<SessionManager>,
+    binding_id: String,
     user_tz: chrono_tz::Tz,
 }
 
 impl<M: CompletionModel, C: Channel> Binding<M, C> {
-    pub fn new(agent: Arc<Agent<M>>, channel: Arc<ChannelManager<C>>, tz: chrono_tz::Tz) -> Self {
+    pub fn new(
+        agent: Arc<Agent<M>>,
+        channel: Arc<ChannelManager<C>>,
+        session_manager: Arc<SessionManager>,
+        binding_id: impl Into<String>,
+        tz: chrono_tz::Tz,
+    ) -> Self {
         Self {
-            // id: Uuid::new_v4(),
             agent,
             channel,
+            session_manager,
+            binding_id: binding_id.into(),
             user_tz: tz,
         }
     }
@@ -46,10 +53,25 @@ impl<M: CompletionModel, C: Channel> Binding<M, C> {
     }
 
     pub async fn handle_message(&self, message: &IncomingMessage) -> anyhow::Result<()> {
-        // parse message：UserInput,Approval,Interrupt,Compact,Clear,SwitchThread,NewThread,Heartbeat,SystemCommand
-        // UserInput: process_user_input -> run_loop
-        // Approval(accept): process_approval -> run_loop
-        Ok(())
+        // Parse message intent: UserInput, Approval, Interrupt, etc.
+        // For this minimal implementation, we treat all messages as user input
+        // TODO: Add command parsing (/reset, /history, /summary)
+        // TODO: Add approval response detection
+
+        // Resolve thread using ThreadKey routing
+        let (_session, _thread_id) = self
+            .session_manager
+            .resolve_thread(
+                &self.binding_id,
+                &message.user_id,
+                &message.channel,
+                message.thread_id.as_deref(),
+            )
+            .await;
+
+        // Route to appropriate handler based on thread state
+        // For now: always process as user input
+        self.process_user_input(message).await
     }
 
     pub async fn process_user_input(&self, message: &IncomingMessage) -> anyhow::Result<()> {

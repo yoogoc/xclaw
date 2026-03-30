@@ -1,4 +1,2 @@
 // pub mod r#trait;
-pub struct HookRegistry {
-    
-}
+pub struct HookRegistry {}

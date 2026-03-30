@@ -45,9 +45,7 @@ impl LLMResponse {
                         arguments: tc.function.arguments.clone(),
                     });
                 }
-                AssistantContent::Reasoning(r) => {
-                    thinking_parts.push(r.display_text())
-                }
+                AssistantContent::Reasoning(r) => thinking_parts.push(r.display_text()),
                 _ => {}
             }
         }

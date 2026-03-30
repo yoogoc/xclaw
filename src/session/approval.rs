@@ -1,7 +1,7 @@
+use crate::message::{ChatMessage, ToolCall};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use crate::message::{ChatMessage, ToolCall};
 
 /// Pending tool approval request stored on a thread.
 #[derive(Debug, Clone, Serialize, Deserialize)]

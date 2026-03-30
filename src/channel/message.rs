@@ -1,10 +1,10 @@
 mod attachment;
 
-use std::pin::Pin;
+use crate::channel::message::attachment::IncomingAttachment;
 use chrono::{DateTime, Utc};
 use futures::Stream;
+use std::pin::Pin;
 use uuid::Uuid;
-use crate::channel::message::attachment::IncomingAttachment;
 
 /// A message received from an external channel.
 #[derive(Debug, Clone)]

@@ -1,5 +1,5 @@
-use std::time::Duration;
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
 /// Output from a tool execution.
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -1,3 +1,1 @@
-pub struct SkillRegistry {
-    
-}
+pub struct SkillRegistry {}
