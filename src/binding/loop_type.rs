@@ -4,4 +4,6 @@ pub enum LoopType {
     UserMessage(Box<IncomingMessage>),
     ApprovalAccept,
     ApprovalDiscard,
+    ApprovalAlways,
+    Interrupt,
 }
