@@ -1,54 +1,64 @@
 mod channel;
 mod message;
+mod websocket;
 
 pub use channel::*;
 pub use message::{IncomingMessage, MessageStream, OutgoingResponse};
+pub use websocket::WebSocketChannel;
 
-// 十分明确，一个Channel只接收一种类型的消息
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::RwLock;
+
 pub struct ChannelManager<C: Channel> {
-    inner: C,
+    channel: Arc<C>,
+    draft_buffer: Arc<RwLock<HashMap<String, String>>>,
 }
 
 impl<C: Channel> ChannelManager<C> {
-    pub fn new(c: C) -> Self {
-        Self { inner: c }
+    pub fn new(channel: C) -> Self {
+        Self {
+            channel: Arc::new(channel),
+            draft_buffer: Arc::new(RwLock::new(HashMap::new())),
+        }
     }
-}
 
-impl<C: Channel> ChannelManager<C> {
-    fn allow_chunk(&self) -> bool {
-        self.inner.supports_draft_updates()
-    }
-}
-
-impl<C: Channel> ChannelManager<C> {
     pub async fn receive(&self) -> anyhow::Result<MessageStream> {
-        todo!()
+        self.channel.receive().await
     }
 
-    pub async fn chunk_send(
-        &self,
-        msg: &IncomingMessage,
-        response: OutgoingResponse,
-    ) -> anyhow::Result<MessageStream> {
-        // 兼容draft edits：
-        // 如果channel支持draft edits且配置了流式发送，那么就直接发送
-        // 如果不支持draft edits,就先放到本地队列，通过flush发送
-        todo!()
+    pub async fn send_chunk(&self, thread_id: &str, chunk: &str) -> anyhow::Result<()> {
+        if self.channel.supports_draft_updates() {
+            let mut buffer = self.draft_buffer.write().await;
+            let content = buffer.entry(thread_id.to_string()).or_insert_with(String::new);
+            content.push_str(chunk);
+
+            self.channel.send(OutgoingResponse {
+                content: content.clone(),
+                thread_id: Some(thread_id.to_string()),
+                is_draft: true,
+                attachments: vec![],
+                metadata: serde_json::Value::Null,
+            }).await?;
+        } else {
+            let mut buffer = self.draft_buffer.write().await;
+            buffer.entry(thread_id.to_string()).or_insert_with(String::new).push_str(chunk);
+        }
+        Ok(())
     }
 
-    pub async fn flush(
-        &self,
-        msg: &IncomingMessage,
-        response: OutgoingResponse,
-    ) -> anyhow::Result<MessageStream> {
-        // 兼容draft edits：
-        // 如果channel支持draft edits且配置了流式发送，那么就直接发送，
-        // 如果不支持draft edits
-        todo!()
-    }
+    pub async fn send_final(&self, thread_id: &str) -> anyhow::Result<()> {
+        let content = {
+            let mut buffer = self.draft_buffer.write().await;
+            buffer.remove(thread_id).unwrap_or_default()
+        };
 
-    pub async fn stop(&self) -> anyhow::Result<()> {
-        todo!()
+        self.channel.send(OutgoingResponse {
+            content,
+            thread_id: Some(thread_id.to_string()),
+            is_draft: false,
+            attachments: vec![],
+            metadata: serde_json::Value::Null,
+        }).await
     }
 }

@@ -40,6 +40,8 @@ pub struct OutgoingResponse {
     pub content: String,
     /// Optional thread ID to reply in.
     pub thread_id: Option<String>,
+    /// Whether this is a draft (streaming) or final message.
+    pub is_draft: bool,
     /// Optional file paths to attach.
     pub attachments: Vec<String>,
     /// Channel-specific metadata for the response.
