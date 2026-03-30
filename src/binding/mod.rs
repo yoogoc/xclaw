@@ -1,11 +1,13 @@
 mod loop_outcome;
 mod loop_type;
 mod intent;
+mod message_convert;
 
 use crate::agent::Agent;
 use crate::binding::loop_outcome::LoopOutcome;
 use crate::binding::loop_type::LoopType;
 use crate::binding::intent::Intent;
+use crate::binding::message_convert::to_rig_messages;
 use crate::channel::{Channel, ChannelManager, IncomingMessage};
 use crate::llm::{FinishReason, LLMResponse};
 use crate::session::{PendingApproval, Session, SessionManager, ThreadState};
@@ -351,15 +353,26 @@ impl<M: CompletionModel, C: Channel> Binding<M, C> {
 
     async fn call_llm(
         &self,
-        _session: Arc<Mutex<Session>>,
-        _thread_id: Uuid,
+        session: Arc<Mutex<Session>>,
+        thread_id: Uuid,
     ) -> anyhow::Result<LLMResponse> {
-        // TODO: Build context from thread
+        // Build context from thread
+        let messages = {
+            let sess = session.lock().await;
+            sess.threads.get(&thread_id)
+                .map(|t| t.messages())
+                .unwrap_or_default()
+        };
+
+        // Convert to rig messages
+        let rig_messages = to_rig_messages(&messages)?;
+
+        // Call LLM
         let llm = self.agent.llm.llm.clone();
         let mut stream = llm.stream(CompletionRequest {
             model: None,
             preamble: None,
-            chat_history: OneOrMany::many(vec![])?,
+            chat_history: OneOrMany::many(rig_messages)?,
             documents: vec![],
             tools: vec![],
             temperature: None,
