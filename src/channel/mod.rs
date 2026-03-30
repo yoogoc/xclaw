@@ -1,10 +1,12 @@
 mod channel;
 mod message;
 mod websocket;
+mod discord;
 
 pub use channel::*;
 pub use message::{IncomingMessage, MessageStream, OutgoingResponse};
 pub use websocket::WebSocketChannel;
+pub use discord::{DiscordChannel, DiscordConfig};
 
 use std::collections::HashMap;
 use std::sync::Arc;
