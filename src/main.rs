@@ -1,45 +1,113 @@
 use anyhow::Result;
-// use config::Config;
 use log::info;
-use std::path::PathBuf;
+use std::sync::Arc;
+use xcraw::agent::Agent;
+use xcraw::binding::Binding;
+use xcraw::channel::{ChannelManager, WebSocketChannel};
+use xcraw::config::Config;
+use xcraw::hooks::HookRegistry;
+use xcraw::llm::LlmProvider;
+use xcraw::session::SessionManager;
+use xcraw::tools::ToolRegistry;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Initialize logging
     env_logger::init();
     dotenv::dotenv().ok();
 
-    info!("Starting xcraw minimal agent loop");
+    info!("Starting xcraw");
 
-    // 1. Load configuration
-    // let config = Config::load("config.yaml")?;
-    // info!("Loaded config with {} agents", config.agents.len());
+    // Load config
+    let config = Config::load("config.yaml")?;
+    info!("Loaded config with {} bindings", config.bindings.len());
 
-    // 2. Create workspace directory
-    let workspace_path = PathBuf::from("workspace");
-    tokio::fs::create_dir_all(workspace_path.join("tasks/pending")).await?;
-    tokio::fs::create_dir_all(workspace_path.join("tasks/active")).await?;
-    tokio::fs::create_dir_all(workspace_path.join("tasks/completed")).await?;
-    tokio::fs::create_dir_all(workspace_path.join("tasks/failed")).await?;
+    // Create session manager
+    let session_manager = Arc::new(SessionManager::new());
 
-    // 3. Create test task
-    // create_test_task(&workspace_path).await?;
+    // Create bindings
+    let mut tasks = vec![];
 
-    // 4. Create LLM clients
-    // let llm_clients = create_llm_clients(&config)?;
+    for binding_config in &config.bindings {
+        let binding_id = binding_config.get_binding_id();
+        info!("Creating binding: {}", binding_id);
 
-    // 5. Create tool executor
+        // Find configs
+        let agent_config = config.agents.iter()
+            .find(|a| a.name == binding_config.agent)
+            .ok_or_else(|| anyhow::anyhow!("Agent not found"))?;
 
-    // 6. Create Agents and start loops
+        let llm_config = config.llms.iter()
+            .find(|l| l.name == agent_config.llm)
+            .ok_or_else(|| anyhow::anyhow!("LLM not found"))?;
 
-    // 7. Simulate sending test message
+        // Create components
+        let llm = create_llm_provider(llm_config)?;
+        let agent = create_agent(agent_config, llm)?;
+        let channel = WebSocketChannel::new();
+        let channel_manager = Arc::new(ChannelManager::new(channel));
 
-    // 8. Run for a while then shutdown
+        // Create and spawn binding
+        let binding = Binding::new(
+            agent,
+            channel_manager,
+            session_manager.clone(),
+            binding_id.clone(),
+            chrono_tz::UTC,
+        );
 
-    // Note: In production, implement graceful shutdown
-    // for handle in handles {
-    //     handle.abort();
-    // }
+        let task = tokio::spawn(async move {
+            if let Err(e) = binding.start().await {
+                log::error!("Binding error: {}", e);
+            }
+        });
+
+        tasks.push(task);
+    }
+
+    info!("xcraw started successfully");
+
+    // Keep running
+    tokio::signal::ctrl_c().await?;
+    info!("Shutting down");
 
     Ok(())
+}
+
+fn create_llm_provider(llm_config: &xcraw::config::LlmConfig) -> Result<Arc<LlmProvider<rig::providers::anthropic::completion::CompletionModel>>> {
+    use rig::client::CompletionClient;
+    use rig::providers::anthropic::{Client, completion::CLAUDE_4_OPUS};
+
+    let client = Client::new(&llm_config.anthropic.as_ref().unwrap().token)?;
+    let model = client.completion_model(CLAUDE_4_OPUS);
+
+    Ok(Arc::new(LlmProvider {
+        llm: Arc::new(model),
+    }))
+}
+
+fn create_agent(
+    _agent_config: &xcraw::config::AgentConfig,
+    llm: Arc<LlmProvider<rig::providers::anthropic::completion::CompletionModel>>,
+) -> Result<Arc<Agent<rig::providers::anthropic::completion::CompletionModel>>> {
+    use std::path::PathBuf;
+
+    let workspace = Arc::new(xcraw::agent::workspace::Workspace::new(PathBuf::from("workspace")));
+    let hooks = Arc::new(HookRegistry::new());
+    let tools = Arc::new(ToolRegistry::new());
+
+    Ok(Arc::new(Agent {
+        storage: None,
+        llm,
+        fast_llm: None,
+        workspace,
+        skills: None,
+        hooks,
+        tools,
+        heartbeat: None,
+        config: xcraw::agent::config::AgentLoopConfig {
+            max_iterations: 10,
+            enable_tool_intent_nudge: false,
+            max_tool_intent_nudges: 3,
+        },
+    }))
 }

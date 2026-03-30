@@ -9,9 +9,9 @@ use rig::completion::CompletionModel;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-mod config;
+pub mod config;
 mod heartbeat;
-mod workspace;
+pub mod workspace;
 
 // 不能直接使用rig的agent，因为我们要自定义tool call的逻辑
 pub struct Agent<M: CompletionModel> {

@@ -8,7 +8,8 @@ pub struct Config {
     pub llms: Vec<LlmConfig>,
     pub agents: Vec<AgentConfig>,
     pub channels: Vec<ChannelConfig>,
-    pub chat_rooms: Vec<ChatRoomConfig>,
+    #[serde(default)]
+    pub bindings: Vec<BindingConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

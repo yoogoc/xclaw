@@ -9,6 +9,12 @@ pub struct ToolRegistry {
 }
 
 impl ToolRegistry {
+    pub fn new() -> Self {
+        Self {
+            tools: RwLock::new(HashMap::new()),
+        }
+    }
+
     pub async fn get(&self, name: &str) -> Option<Arc<dyn Tool>> {
         let tools = self.tools.read().await;
         tools.get(name).map(Arc::clone)
