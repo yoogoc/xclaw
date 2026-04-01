@@ -8,7 +8,7 @@ use crate::binding::loop_outcome::LoopOutcome;
 use crate::binding::loop_type::LoopType;
 use crate::binding::intent::Intent;
 use crate::binding::message_convert::to_rig_messages;
-use crate::channel::{Channel, ChannelManager, IncomingMessage};
+use crate::channel::{ChannelManager, IncomingMessage};
 use crate::llm::{FinishReason, LLMResponse};
 use crate::session::{PendingApproval, Session, SessionManager, ThreadState};
 use crate::tools::ApprovalRequirement;
@@ -20,18 +20,18 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
-pub struct Binding<M: CompletionModel, C: Channel> {
+pub struct Binding<M: CompletionModel> {
     agent: Arc<Agent<M>>,
-    channel: Arc<ChannelManager<C>>,
+    channel: Arc<ChannelManager>,
     session_manager: Arc<SessionManager>,
     binding_id: String,
     user_tz: chrono_tz::Tz,
 }
 
-impl<M: CompletionModel, C: Channel> Binding<M, C> {
+impl<M: CompletionModel> Binding<M> {
     pub fn new(
         agent: Arc<Agent<M>>,
-        channel: Arc<ChannelManager<C>>,
+        channel: Arc<ChannelManager>,
         session_manager: Arc<SessionManager>,
         binding_id: impl Into<String>,
         tz: chrono_tz::Tz,
@@ -46,9 +46,13 @@ impl<M: CompletionModel, C: Channel> Binding<M, C> {
     }
 }
 
-impl<M: CompletionModel, C: Channel> Binding<M, C> {
+impl<M: CompletionModel> Binding<M> {
     pub async fn start(&self) -> anyhow::Result<()> {
         info!("start binding({})", &self.binding_id);
+
+        // Start the channel (connect, authenticate, etc.)
+        self.channel.start().await?;
+
         let mut stream = self.channel.receive().await?;
 
         while let Some(message) = stream.next().await {

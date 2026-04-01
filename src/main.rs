@@ -1,9 +1,10 @@
 use anyhow::Result;
 use log::info;
 use std::sync::Arc;
+use tracing_subscriber::{EnvFilter, fmt};
 use xcraw::agent::Agent;
 use xcraw::binding::Binding;
-use xcraw::channel::{ChannelManager, WebSocketChannel};
+use xcraw::channel::{ChannelManager, DiscordChannel, DiscordConfig, WebSocketChannel};
 use xcraw::config::Config;
 use xcraw::hooks::HookRegistry;
 use xcraw::llm::LlmProvider;
@@ -12,7 +13,10 @@ use xcraw::tools::ToolRegistry;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    env_logger::init();
+    tracing_subscriber::fmt()
+        .with_span_events(fmt::format::FmtSpan::NONE)
+        .with_env_filter(EnvFilter::builder().parse("debug,tracing::span=off")?)
+        .init();
     dotenv::dotenv().ok();
 
     info!("Starting xcraw");
@@ -32,19 +36,29 @@ async fn main() -> Result<()> {
         info!("Creating binding: {}", binding_id);
 
         // Find configs
-        let agent_config = config.agents.iter()
+        let agent_config = config
+            .agents
+            .iter()
             .find(|a| a.name == binding_config.agent)
             .ok_or_else(|| anyhow::anyhow!("Agent not found"))?;
 
-        let llm_config = config.llms.iter()
+        let llm_config = config
+            .llms
+            .iter()
             .find(|l| l.name == agent_config.llm)
             .ok_or_else(|| anyhow::anyhow!("LLM not found"))?;
 
         // Create components
         let llm = create_llm_provider(llm_config)?;
         let agent = create_agent(agent_config, llm)?;
-        let channel = WebSocketChannel::new();
-        let channel_manager = Arc::new(ChannelManager::new(channel));
+
+        // Find channel config and create appropriate channel
+        let channel_config = config
+            .channels
+            .iter()
+            .find(|c| c.name == binding_config.channel)
+            .ok_or_else(|| anyhow::anyhow!("Channel '{}' not found", binding_config.channel))?;
+        let channel_manager = Arc::new(create_channel(channel_config).await?);
 
         // Create and spawn binding
         let binding = Binding::new(
@@ -73,7 +87,27 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-fn create_llm_provider(llm_config: &xcraw::config::LlmConfig) -> Result<Arc<LlmProvider<rig::providers::anthropic::completion::CompletionModel>>> {
+async fn create_channel(channel_config: &xcraw::config::ChannelConfig) -> Result<ChannelManager> {
+    match channel_config.channel_type.as_str() {
+        "discord" => {
+            let channel = DiscordChannel::new(DiscordConfig {
+                token: channel_config.token.clone(),
+                channel_ids: vec!["1478672180664598674".to_string()],
+                require_mention: false,
+            })
+            .await?;
+            Ok(ChannelManager::new(channel))
+        }
+        _ => {
+            let channel = WebSocketChannel::new();
+            Ok(ChannelManager::new(channel))
+        }
+    }
+}
+
+fn create_llm_provider(
+    llm_config: &xcraw::config::LlmConfig,
+) -> Result<Arc<LlmProvider<rig::providers::anthropic::completion::CompletionModel>>> {
     use rig::client::CompletionClient;
     use rig::providers::anthropic::{Client, completion::CLAUDE_4_OPUS};
 
@@ -91,7 +125,9 @@ fn create_agent(
 ) -> Result<Arc<Agent<rig::providers::anthropic::completion::CompletionModel>>> {
     use std::path::PathBuf;
 
-    let workspace = Arc::new(xcraw::agent::workspace::Workspace::new(PathBuf::from("workspace")));
+    let workspace = Arc::new(xcraw::agent::workspace::Workspace::new(PathBuf::from(
+        "workspace",
+    )));
     let hooks = Arc::new(HookRegistry::new());
     let tools = Arc::new(ToolRegistry::new());
 

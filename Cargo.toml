@@ -36,6 +36,7 @@ log = "0.4.29"
 env_logger = "0.11"
 logforth = { version = "0.29.1", features = ["starter-log"] }
 fastrace-axum = "0.2.0"
+tracing-subscriber = { version = "0.3.18", features = ["fmt", "env-filter"] }
 
 # other utilities
 regex = "1.11"

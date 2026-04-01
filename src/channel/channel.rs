@@ -3,6 +3,11 @@ use anyhow::Result;
 
 #[async_trait]
 pub trait Channel: Send + Sync {
+    /// Start the channel (connect, authenticate, etc.).
+    async fn start(&self) -> Result<()> {
+        Ok(())
+    }
+
     /// Receive incoming messages as a stream.
     async fn receive(&self) -> Result<MessageStream>;
 

@@ -1,8 +1,10 @@
 use crate::channel::{Channel, IncomingMessage, MessageStream, OutgoingResponse};
 use anyhow::Result;
 use serenity::all::{ChannelId, Context, EventHandler, GatewayIntents, Message};
-use serenity::Client;
+use serenity::{Client};
 use std::sync::Arc;
+use serenity::client::ClientBuilder;
+use serenity::http::HttpBuilder;
 use tokio::sync::{mpsc, RwLock};
 use uuid::Uuid;
 
@@ -67,7 +69,7 @@ impl EventHandler for Handler {
 impl DiscordChannel {
     pub async fn new(config: DiscordConfig) -> Result<Self> {
         let (tx, rx) = mpsc::unbounded_channel();
-        
+
         Ok(Self {
             client: Arc::new(RwLock::new(None)),
             message_rx: Arc::new(RwLock::new(rx)),
@@ -75,28 +77,36 @@ impl DiscordChannel {
             config,
         })
     }
+}
 
-    pub async fn start(&self) -> Result<()> {
+#[async_trait]
+impl Channel for DiscordChannel {
+    async fn start(&self) -> Result<()> {
         let intents = GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT;
-        
+
         let handler = Handler {
             message_tx: self.message_tx.clone(),
             config: self.config.clone(),
         };
 
-        let client = Client::builder(&self.config.token, intents)
+        let http = HttpBuilder::new(&self.config.token)
+            // .proxy("http://127.0.0.1:7890")
+            // .ratelimiter_disabled(true)
+            .build();
+        let builder = ClientBuilder::new_with_http(http, intents);
+
+        let mut client = builder
             .event_handler(handler)
             .await?;
+
+        client.start().await?;
 
         info!("connected to discord");
 
         *self.client.write().await = Some(client);
         Ok(())
     }
-}
 
-#[async_trait]
-impl Channel for DiscordChannel {
     async fn receive(&self) -> Result<MessageStream> {
         let rx = self.message_rx.clone();
         let stream = async_stream::stream! {

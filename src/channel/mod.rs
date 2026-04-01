@@ -12,17 +12,21 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-pub struct ChannelManager<C: Channel> {
-    channel: Arc<C>,
+pub struct ChannelManager {
+    channel: Arc<dyn Channel>,
     draft_buffer: Arc<RwLock<HashMap<String, String>>>,
 }
 
-impl<C: Channel> ChannelManager<C> {
-    pub fn new(channel: C) -> Self {
+impl ChannelManager {
+    pub fn new(channel: impl Channel + 'static) -> Self {
         Self {
             channel: Arc::new(channel),
             draft_buffer: Arc::new(RwLock::new(HashMap::new())),
         }
+    }
+
+    pub async fn start(&self) -> anyhow::Result<()> {
+        self.channel.start().await
     }
 
     pub async fn receive(&self) -> anyhow::Result<MessageStream> {
