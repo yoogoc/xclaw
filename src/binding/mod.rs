@@ -1,12 +1,12 @@
+mod intent;
 mod loop_outcome;
 mod loop_type;
-mod intent;
 mod message_convert;
 
 use crate::agent::Agent;
+use crate::binding::intent::Intent;
 use crate::binding::loop_outcome::LoopOutcome;
 use crate::binding::loop_type::LoopType;
-use crate::binding::intent::Intent;
 use crate::binding::message_convert::to_rig_messages;
 use crate::channel::{ChannelManager, IncomingMessage};
 use crate::llm::{FinishReason, LLMResponse};
@@ -57,7 +57,9 @@ impl<M: CompletionModel> Binding<M> {
 
         while let Some(message) = stream.next().await {
             // get session, thread_id
-            self.handle_message(&message).await?;
+            if let Err(err) = self.handle_message(&message).await {
+                error!("[handle message]: {}", err);
+            }
         }
         Ok(())
     }
@@ -80,13 +82,14 @@ impl<M: CompletionModel> Binding<M> {
         // Step 3: Get thread state
         let thread_state = {
             let sess = session.lock().await;
-            sess.threads.get(&thread_id)
+            sess.threads
+                .get(&thread_id)
                 .map(|t| t.state)
                 .unwrap_or(ThreadState::Idle)
         };
 
         // Step 4: Dispatch by intent and state
-        match (intent, thread_state) {
+        let result = match (intent, thread_state) {
             (Intent::UserInput, ThreadState::Idle) => {
                 self.process_user_input(session, thread_id, message).await
             }
@@ -107,7 +110,8 @@ impl<M: CompletionModel> Binding<M> {
                 self.process_approval(session, thread_id, true, true).await
             }
             (Intent::ApprovalReject, ThreadState::AwaitingApproval) => {
-                self.process_approval(session, thread_id, false, false).await
+                self.process_approval(session, thread_id, false, false)
+                    .await
             }
             (Intent::Interrupt, _) => {
                 let mut sess = session.lock().await;
@@ -117,7 +121,19 @@ impl<M: CompletionModel> Binding<M> {
                 Ok(())
             }
             _ => Ok(()), // Ignore invalid combinations
+        };
+
+        if let Err(err) = result {
+            let channel = self.channel.clone();
+            let thread_id = message
+                .thread_id
+                .as_ref()
+                .map_or(thread_id.to_string(), |t| t.to_string());
+            channel.send_chunk(&thread_id, &err.to_string()).await?;
+            channel.send_final(&thread_id).await?;
         }
+
+        Ok(())
     }
 
     pub async fn process_user_input(
@@ -149,8 +165,14 @@ impl<M: CompletionModel> Binding<M> {
             if always {
                 let tool_names: Vec<String> = {
                     let sess = session.lock().await;
-                    sess.threads.get(&thread_id)
-                        .map(|t| t.pending_approvals.iter().map(|a| a.tool_name.clone()).collect())
+                    sess.threads
+                        .get(&thread_id)
+                        .map(|t| {
+                            t.pending_approvals
+                                .iter()
+                                .map(|a| a.tool_name.clone())
+                                .collect()
+                        })
                         .unwrap_or_default()
                 };
 
@@ -199,7 +221,8 @@ impl<M: CompletionModel> Binding<M> {
 
                     if all_auto {
                         // Execute tools and continue
-                        self.execute_tools(session.clone(), thread_id, &approvals).await?;
+                        self.execute_tools(session.clone(), thread_id, &approvals)
+                            .await?;
                         continue;
                     } else {
                         // Need approval
@@ -207,7 +230,8 @@ impl<M: CompletionModel> Binding<M> {
                             let mut sess = session.lock().await;
                             if let Some(thread) = sess.threads.get_mut(&thread_id) {
                                 thread.state = ThreadState::AwaitingApproval;
-                                thread.pending_approvals = approvals.into_iter().map(|b| *b).collect();
+                                thread.pending_approvals =
+                                    approvals.into_iter().map(|b| *b).collect();
                             }
                         }
                         break;
@@ -243,7 +267,8 @@ impl<M: CompletionModel> Binding<M> {
     ) -> anyhow::Result<LoopOutcome> {
         let current_iteration = {
             let sess = session.lock().await;
-            sess.threads.get(&thread_id)
+            sess.threads
+                .get(&thread_id)
                 .and_then(|t| t.last_turn())
                 .map(|turn| turn.current_tool_iterations)
                 .unwrap_or(0)
@@ -266,8 +291,13 @@ impl<M: CompletionModel> Binding<M> {
             match resp.finish_reason {
                 FinishReason::Stop => return Ok(LoopOutcome::Response(Box::new(resp))),
                 FinishReason::ToolUse => {
-                    let approvals = self.prepare_tool_approvals(session.clone(), &resp.tool_calls).await?;
-                    return Ok(LoopOutcome::ToolCall { approvals, not_found: vec![] });
+                    let approvals = self
+                        .prepare_tool_approvals(session.clone(), &resp.tool_calls)
+                        .await?;
+                    return Ok(LoopOutcome::ToolCall {
+                        approvals,
+                        not_found: vec![],
+                    });
                 }
                 FinishReason::Length => continue,
                 _ => return Err(anyhow::anyhow!("LLM error: {:?}", resp.finish_reason)),
@@ -344,7 +374,9 @@ impl<M: CompletionModel> Binding<M> {
                     if let Some(thread) = sess.threads.get_mut(&thread_id) {
                         if let Some(turn) = thread.last_turn_mut() {
                             match result {
-                                Ok(output) => turn.record_tool_result(serde_json::to_value(output)?),
+                                Ok(output) => {
+                                    turn.record_tool_result(serde_json::to_value(output)?)
+                                }
                                 Err(e) => turn.record_tool_error(e.to_string()),
                             }
                         }
@@ -364,7 +396,8 @@ impl<M: CompletionModel> Binding<M> {
         // Build context from thread
         let messages = {
             let sess = session.lock().await;
-            sess.threads.get(&thread_id)
+            sess.threads
+                .get(&thread_id)
                 .map(|t| t.messages())
                 .unwrap_or_default()
         };
@@ -374,20 +407,36 @@ impl<M: CompletionModel> Binding<M> {
 
         // Call LLM
         let llm = self.agent.llm.llm.clone();
-        let mut stream = llm.stream(CompletionRequest {
-            model: None,
-            preamble: None,
-            chat_history: OneOrMany::many(rig_messages)?,
-            documents: vec![],
-            tools: vec![],
-            temperature: None,
-            max_tokens: None,
-            tool_choice: None,
-            additional_params: None,
-            output_schema: None,
-        }).await?;
+        let mut stream = llm
+            .stream(CompletionRequest {
+                model: None,
+                preamble: None,
+                chat_history: OneOrMany::many(rig_messages)?,
+                documents: vec![],
+                tools: vec![],
+                temperature: None,
+                max_tokens: None,
+                tool_choice: None,
+                additional_params: None,
+                output_schema: None,
+            })
+            .await?;
 
-        while let Some(_content) = stream.next().await {}
+        // Stream to channel
+        let thread_id_str = thread_id.to_string();
+        while let Some(result) = stream.next().await {
+            match result {
+                Ok(content) => {
+                    if let rig::streaming::StreamedAssistantContent::Text(text) = content {
+                        self.channel.send_chunk(&thread_id_str, &text.text).await?;
+                    }
+                }
+                Err(e) => return Err(e.into()),
+            }
+        }
+
+        // Send final message
+        self.channel.send_final(&thread_id_str).await?;
 
         Ok(LLMResponse::from(stream.choice))
     }

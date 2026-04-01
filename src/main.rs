@@ -1,6 +1,7 @@
 use anyhow::Result;
 use log::info;
 use std::sync::Arc;
+use serenity::all::ChannelId;
 use tracing_subscriber::{EnvFilter, fmt};
 use xcraw::agent::Agent;
 use xcraw::binding::Binding;
@@ -92,7 +93,7 @@ async fn create_channel(channel_config: &xcraw::config::ChannelConfig) -> Result
         "discord" => {
             let channel = DiscordChannel::new(DiscordConfig {
                 token: channel_config.token.clone(),
-                channel_ids: vec!["1478672180664598674".to_string()],
+                channel_id: ChannelId::new(1478672180664598674),
                 require_mention: false,
             })
             .await?;

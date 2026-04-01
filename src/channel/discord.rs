@@ -1,15 +1,16 @@
 use crate::channel::{Channel, IncomingMessage, MessageStream, OutgoingResponse};
 use anyhow::Result;
-use serenity::all::{ChannelId, Context, EventHandler, GatewayIntents, Message};
-use serenity::{Client};
+use async_trait::async_trait;
+use serenity::all::{ChannelId, Context, EventHandler, GatewayIntents, Message, Ready};
+use serenity::Client;
 use std::sync::Arc;
 use serenity::client::ClientBuilder;
-use serenity::http::HttpBuilder;
+use serenity::http::{Http, HttpBuilder};
 use tokio::sync::{mpsc, RwLock};
 use uuid::Uuid;
 
 pub struct DiscordChannel {
-    client: Arc<RwLock<Option<Client>>>,
+    http: RwLock<Option<Arc<Http>>>,
     message_rx: Arc<RwLock<mpsc::UnboundedReceiver<IncomingMessage>>>,
     message_tx: mpsc::UnboundedSender<IncomingMessage>,
     config: DiscordConfig,
@@ -18,7 +19,7 @@ pub struct DiscordChannel {
 #[derive(Clone)]
 pub struct DiscordConfig {
     pub token: String,
-    pub channel_ids: Vec<String>,
+    pub channel_id: ChannelId,
     pub require_mention: bool,
 }
 
@@ -36,8 +37,7 @@ impl EventHandler for Handler {
         }
 
         // Check if in monitored channels
-        if !self.config.channel_ids.is_empty()
-            && !self.config.channel_ids.contains(&msg.channel_id.to_string()) {
+        if !self.config.channel_id.eq(&msg.channel_id) {
             return;
         }
 
@@ -64,6 +64,9 @@ impl EventHandler for Handler {
 
         let _ = self.message_tx.send(incoming);
     }
+    async fn ready(&self, _ctx: Context, ready: Ready) {
+        println!("{} is connected!", ready.user.name);
+    }
 }
 
 impl DiscordChannel {
@@ -71,7 +74,7 @@ impl DiscordChannel {
         let (tx, rx) = mpsc::unbounded_channel();
 
         Ok(Self {
-            client: Arc::new(RwLock::new(None)),
+            http: RwLock::new(None),
             message_rx: Arc::new(RwLock::new(rx)),
             message_tx: tx,
             config,
@@ -93,17 +96,23 @@ impl Channel for DiscordChannel {
             // .proxy("http://127.0.0.1:7890")
             // .ratelimiter_disabled(true)
             .build();
+
         let builder = ClientBuilder::new_with_http(http, intents);
 
         let mut client = builder
             .event_handler(handler)
             .await?;
 
-        client.start().await?;
+        *self.http.write().await = Some(client.http.clone());
 
-        info!("connected to discord");
+        // Spawn client in background
+        tokio::spawn(async move {
+            if let Err(e) = client.start().await {
+                log::error!("Discord client error: {}", e);
+            }
+        });
 
-        *self.client.write().await = Some(client);
+        log::info!("Discord client started");
         Ok(())
     }
 
@@ -119,13 +128,10 @@ impl Channel for DiscordChannel {
     }
 
     async fn send(&self, response: OutgoingResponse) -> Result<()> {
-        let client_lock = self.client.read().await;
-        let client = client_lock.as_ref().ok_or_else(|| anyhow::anyhow!("Client not started"))?;
+        let http = self.http.read().await;
+        let http = http.as_ref().ok_or_else(|| anyhow::anyhow!("Discord client not initialized"))?;
 
-        if let Some(thread_id) = response.thread_id {
-            let channel_id = ChannelId::new(thread_id.parse()?);
-            channel_id.say(&client.http, response.content).await?;
-        }
+        self.config.channel_id.say(http, response.content).await?;
 
         Ok(())
     }
