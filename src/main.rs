@@ -112,8 +112,11 @@ fn create_llm_provider(
     use rig::client::CompletionClient;
     use rig::providers::anthropic::{Client, completion::CLAUDE_4_OPUS};
 
-    let client = Client::new(&llm_config.anthropic.as_ref().unwrap().token)?;
-    let model = client.completion_model(CLAUDE_4_OPUS);
+    let client = Client::builder()
+        .base_url(&llm_config.anthropic.as_ref().unwrap().base_url)
+        .api_key(&llm_config.anthropic.as_ref().unwrap().token)
+        .build()?;
+    let model = client.completion_model("claude-opus-4-6");
 
     Ok(Arc::new(LlmProvider {
         llm: Arc::new(model),

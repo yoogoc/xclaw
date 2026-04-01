@@ -1,6 +1,7 @@
 use xcraw::channel::{Channel, DiscordChannel, DiscordConfig, WebSocketChannel};
 use xcraw::session::SessionManager;
 use std::sync::Arc;
+use serenity::all::ChannelId;
 
 #[tokio::test]
 async fn test_session_manager() {
@@ -30,7 +31,7 @@ async fn test_websocket_channel() {
 async fn test_discord_channel() {
     let config = DiscordConfig {
         token: "test_token".to_string(),
-        channel_ids: vec![],
+        channel_id: ChannelId::new(0),
         require_mention: false,
     };
 
