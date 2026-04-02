@@ -2,7 +2,6 @@ use crate::channel::{Channel, IncomingMessage, MessageStream, OutgoingResponse};
 use anyhow::Result;
 use async_trait::async_trait;
 use serenity::all::{ChannelId, Context, EventHandler, GatewayIntents, Message, Ready};
-use serenity::Client;
 use std::sync::Arc;
 use serenity::client::ClientBuilder;
 use serenity::http::{Http, HttpBuilder};

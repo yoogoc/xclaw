@@ -6,7 +6,6 @@ mod message_convert;
 use crate::agent::Agent;
 use crate::binding::intent::Intent;
 use crate::binding::loop_outcome::LoopOutcome;
-use crate::binding::loop_type::LoopType;
 use crate::binding::message_convert::to_rig_messages;
 use crate::channel::{ChannelManager, IncomingMessage};
 use crate::llm::{FinishReason, LLMResponse};
@@ -427,7 +426,7 @@ impl<M: CompletionModel> Binding<M> {
         while let Some(result) = stream.next().await {
             match result {
                 Ok(content) => {
-                    if let rig::streaming::StreamedAssistantContent::Text(text) = content {
+                    if let StreamedAssistantContent::Text(text) = content {
                         self.channel.send_chunk(&thread_id_str, &text.text).await?;
                     }
                 }

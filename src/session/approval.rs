@@ -1,5 +1,4 @@
-use crate::message::{ChatMessage, ToolCall};
-use chrono::{DateTime, Utc};
+use crate::message::ChatMessage;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

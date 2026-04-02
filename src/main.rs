@@ -1,8 +1,8 @@
 use anyhow::Result;
 use log::info;
-use std::sync::Arc;
 use serenity::all::ChannelId;
-use tracing_subscriber::{EnvFilter, fmt};
+use std::sync::Arc;
+use tracing_subscriber::{fmt, EnvFilter};
 use xcraw::agent::Agent;
 use xcraw::binding::Binding;
 use xcraw::channel::{ChannelManager, DiscordChannel, DiscordConfig, WebSocketChannel};
@@ -110,7 +110,7 @@ fn create_llm_provider(
     llm_config: &xcraw::config::LlmConfig,
 ) -> Result<Arc<LlmProvider<rig::providers::anthropic::completion::CompletionModel>>> {
     use rig::client::CompletionClient;
-    use rig::providers::anthropic::{Client, completion::CLAUDE_4_OPUS};
+    use rig::providers::anthropic::Client;
 
     let client = Client::builder()
         .base_url(&llm_config.anthropic.as_ref().unwrap().base_url)

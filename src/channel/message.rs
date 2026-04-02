@@ -49,6 +49,7 @@ pub struct OutgoingResponse {
 }
 
 /// Message to send through a channel
+#[allow(unused)]
 #[derive(Debug, Clone)]
 pub struct SendMessage {
     pub content: String,
