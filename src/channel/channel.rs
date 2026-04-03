@@ -11,6 +11,18 @@ pub trait Channel: Send + Sync {
     /// Receive incoming messages as a stream.
     async fn receive(&self) -> Result<MessageStream>;
 
+    async fn start_typing(&self) -> Result<()> {
+        Ok(())
+    }
+
+    async fn end_typing(&self) -> Result<()> {
+        Ok(())
+    }
+
+    async fn reaction(&self, _message_id: &str, _emoji: char) -> Result<()> {
+        Ok(())
+    }
+
     /// Send a message (final or draft).
     async fn send(&self, response: OutgoingResponse) -> Result<()>;
 

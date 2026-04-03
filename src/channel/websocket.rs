@@ -70,6 +70,7 @@ impl WebSocketChannel {
 
         Ok(IncomingMessage {
             id: Uuid::new_v4(),
+            external_id: None,
             channel: "websocket".to_string(),
             user_id: user_id.to_string(),
             user_name: None,

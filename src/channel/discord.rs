@@ -1,18 +1,20 @@
 use crate::channel::{Channel, IncomingMessage, MessageStream, OutgoingResponse};
 use anyhow::Result;
 use async_trait::async_trait;
-use serenity::all::{ChannelId, Context, EventHandler, GatewayIntents, Message, Ready};
+use serenity::all::{ChannelId, Context, EventHandler, GatewayIntents, Message, MessageId, Ready, Typing};
 use std::sync::Arc;
 use serenity::client::ClientBuilder;
 use serenity::http::{Http, HttpBuilder};
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::{mpsc, Mutex, RwLock};
 use uuid::Uuid;
 
 pub struct DiscordChannel {
-    http: RwLock<Option<Arc<Http>>>,
     message_rx: Arc<RwLock<mpsc::UnboundedReceiver<IncomingMessage>>>,
     message_tx: mpsc::UnboundedSender<IncomingMessage>,
     config: DiscordConfig,
+
+    http: Arc<Mutex<Option<Arc<Http>>>>,
+    typing: Arc<Mutex<Option<Typing>>>,
 }
 
 #[derive(Clone)]
@@ -47,6 +49,7 @@ impl EventHandler for Handler {
 
         let incoming = IncomingMessage {
             id: Uuid::new_v4(),
+            external_id: Some(msg.id.to_string()),
             channel: "discord".to_string(),
             user_id: msg.author.id.to_string(),
             user_name: Some(msg.author.name.clone()),
@@ -73,10 +76,11 @@ impl DiscordChannel {
         let (tx, rx) = mpsc::unbounded_channel();
 
         Ok(Self {
-            http: RwLock::new(None),
             message_rx: Arc::new(RwLock::new(rx)),
             message_tx: tx,
             config,
+            http: Arc::new(Mutex::new(None)),
+            typing: Arc::new(Mutex::new(None)),
         })
     }
 }
@@ -102,7 +106,8 @@ impl Channel for DiscordChannel {
             .event_handler(handler)
             .await?;
 
-        *self.http.write().await = Some(client.http.clone());
+        let mut http  = self.http.lock().await;
+        *http = Some(client.http.clone());
 
         // Spawn client in background
         tokio::spawn(async move {
@@ -126,8 +131,32 @@ impl Channel for DiscordChannel {
         Ok(Box::pin(stream))
     }
 
+    async fn start_typing(&self) -> Result<()> {
+        let http = self.http.lock().await;
+        let http = http.as_ref().ok_or_else(|| anyhow::anyhow!("Discord client not initialized"))?;
+
+        let typing = self.config.channel_id.start_typing(http);
+        *self.typing.lock().await = Some(typing);
+        Ok(())
+    }
+
+    async fn end_typing(&self) -> Result<()> {
+        *self.typing.lock().await = None;
+        Ok(())
+    }
+
+    async fn reaction(&self, message_id: &str, emoji: char) -> Result<()> {
+        let http = self.http.lock().await;
+        let http = http.as_ref().ok_or_else(|| anyhow::anyhow!("Discord client not initialized"))?;
+
+        let message_id = MessageId::new(message_id.parse()?);
+        self.config.channel_id.create_reaction(http, message_id, emoji).await?;
+
+        Ok(())
+    }
+
     async fn send(&self, response: OutgoingResponse) -> Result<()> {
-        let http = self.http.read().await;
+        let http = self.http.lock().await;
         let http = http.as_ref().ok_or_else(|| anyhow::anyhow!("Discord client not initialized"))?;
 
         self.config.channel_id.say(http, response.content).await?;

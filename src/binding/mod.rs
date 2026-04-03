@@ -55,8 +55,16 @@ impl<M: CompletionModel> Binding<M> {
         let mut stream = self.channel.receive().await?;
 
         while let Some(message) = stream.next().await {
-            // get session, thread_id
-            if let Err(err) = self.handle_message(&message).await {
+            let result = {
+                if let Some(id) = &message.external_id {
+                    self.channel.send_read(&id).await?;
+                }
+
+                // get session, thread_id
+                self.handle_message(&message).await
+            };
+
+            if let Err(err) = result {
                 error!("[handle message]: {}", err);
             }
         }
@@ -81,16 +89,13 @@ impl<M: CompletionModel> Binding<M> {
         // Step 3: Get thread state
         let thread_state = {
             let sess = session.lock().await;
-            sess.threads
-                .get(&thread_id)
-                .map(|t| t.state)
-                .unwrap_or(ThreadState::Idle)
+            sess.threads.get(&thread_id).map(|t| t.state).unwrap_or(ThreadState::Idle)
         };
 
         // Step 4: Dispatch by intent and state
-        let result = match (intent, thread_state) {
+        let result = match (intent.clone(), thread_state) {
             (Intent::UserInput, ThreadState::Idle) => {
-                self.process_user_input(session, thread_id, message).await
+                self.process_user_input(session.clone(), thread_id, message).await
             }
             (Intent::UserInput, ThreadState::AwaitingApproval) => {
                 // Interrupt current turn and start new one
@@ -100,16 +105,16 @@ impl<M: CompletionModel> Binding<M> {
                         thread.interrupt();
                     }
                 }
-                self.process_user_input(session, thread_id, message).await
+                self.process_user_input(session.clone(), thread_id, message).await
             }
             (Intent::ApprovalAccept, ThreadState::AwaitingApproval) => {
-                self.process_approval(session, thread_id, true, false).await
+                self.process_approval(session.clone(), thread_id, true, false).await
             }
             (Intent::ApprovalAlways, ThreadState::AwaitingApproval) => {
-                self.process_approval(session, thread_id, true, true).await
+                self.process_approval(session.clone(), thread_id, true, true).await
             }
             (Intent::ApprovalReject, ThreadState::AwaitingApproval) => {
-                self.process_approval(session, thread_id, false, false)
+                self.process_approval(session.clone(), thread_id, false, false)
                     .await
             }
             (Intent::Interrupt, _) => {
@@ -119,10 +124,23 @@ impl<M: CompletionModel> Binding<M> {
                 }
                 Ok(())
             }
-            _ => Ok(()), // Ignore invalid combinations
+            _ => {
+                warn!(
+                    "unhandled intent: {:?}, thread state: {:?}",
+                    intent, thread_state
+                );
+                Ok(())
+            } // Ignore invalid combinations
         };
 
         if let Err(err) = result {
+            {
+                let mut sess = session.lock().await;
+                if let Some(thread) = sess.threads.get_mut(&thread_id) {
+                    thread.fail_turn(err.to_string());
+                }
+            }
+
             let channel = self.channel.clone();
             let thread_id = message
                 .thread_id
@@ -423,6 +441,7 @@ impl<M: CompletionModel> Binding<M> {
 
         // Stream to channel
         let thread_id_str = thread_id.to_string();
+        self.channel.start_typing().await?;
         while let Some(result) = stream.next().await {
             match result {
                 Ok(content) => {

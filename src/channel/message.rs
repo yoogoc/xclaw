@@ -11,6 +11,8 @@ use uuid::Uuid;
 pub struct IncomingMessage {
     /// Unique message ID.
     pub id: Uuid,
+    // Channel-specific message ID
+    pub external_id: Option<String>,
     /// Channel this message came from.
     pub channel: String,
     /// User identifier within the channel.
