@@ -16,7 +16,8 @@ use xcraw::tools::ToolRegistry;
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_span_events(fmt::format::FmtSpan::NONE)
-        .with_env_filter(EnvFilter::builder().parse("debug,tracing::span=off")?)
+        // .with_env_filter(EnvFilter::builder().parse("debug,tracing::span=off")?)
+        .with_env_filter(EnvFilter::builder().parse("xcraw=debug")?)
         .init();
     dotenv::dotenv().ok();
 

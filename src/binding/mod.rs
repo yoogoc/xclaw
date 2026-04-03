@@ -89,13 +89,17 @@ impl<M: CompletionModel> Binding<M> {
         // Step 3: Get thread state
         let thread_state = {
             let sess = session.lock().await;
-            sess.threads.get(&thread_id).map(|t| t.state).unwrap_or(ThreadState::Idle)
+            sess.threads
+                .get(&thread_id)
+                .map(|t| t.state)
+                .unwrap_or(ThreadState::Idle)
         };
 
         // Step 4: Dispatch by intent and state
         let result = match (intent.clone(), thread_state) {
             (Intent::UserInput, ThreadState::Idle) => {
-                self.process_user_input(session.clone(), thread_id, message).await
+                self.process_user_input(session.clone(), thread_id, message)
+                    .await
             }
             (Intent::UserInput, ThreadState::AwaitingApproval) => {
                 // Interrupt current turn and start new one
@@ -105,13 +109,16 @@ impl<M: CompletionModel> Binding<M> {
                         thread.interrupt();
                     }
                 }
-                self.process_user_input(session.clone(), thread_id, message).await
+                self.process_user_input(session.clone(), thread_id, message)
+                    .await
             }
             (Intent::ApprovalAccept, ThreadState::AwaitingApproval) => {
-                self.process_approval(session.clone(), thread_id, true, false).await
+                self.process_approval(session.clone(), thread_id, true, false)
+                    .await
             }
             (Intent::ApprovalAlways, ThreadState::AwaitingApproval) => {
-                self.process_approval(session.clone(), thread_id, true, true).await
+                self.process_approval(session.clone(), thread_id, true, true)
+                    .await
             }
             (Intent::ApprovalReject, ThreadState::AwaitingApproval) => {
                 self.process_approval(session.clone(), thread_id, false, false)
@@ -146,8 +153,7 @@ impl<M: CompletionModel> Binding<M> {
                 .thread_id
                 .as_ref()
                 .map_or(thread_id.to_string(), |t| t.to_string());
-            channel.send_chunk(&thread_id, &err.to_string()).await?;
-            channel.send_final(&thread_id).await?;
+            channel.send(&thread_id, &err.to_string()).await?;
         }
 
         Ok(())
@@ -442,11 +448,23 @@ impl<M: CompletionModel> Binding<M> {
         // Stream to channel
         let thread_id_str = thread_id.to_string();
         self.channel.start_typing().await?;
+        let draft_message_id = self.channel.start_chunk(&thread_id_str).await?;
+
+        let mut sess = session.lock().await;
+        let thread = sess.threads.get_mut(&thread_id).unwrap();
+        if let Some(turn) = thread.last_turn_mut() {
+            turn.record_draft_message_id(draft_message_id.clone());
+        }
+
+
         while let Some(result) = stream.next().await {
             match result {
                 Ok(content) => {
                     if let StreamedAssistantContent::Text(text) = content {
-                        self.channel.send_chunk(&thread_id_str, &text.text).await?;
+                        debug!("Received message: {}", text);
+                        self.channel
+                            .send_chunk(&thread_id_str, draft_message_id.clone(), &text.text)
+                            .await?;
                     }
                 }
                 Err(e) => return Err(e.into()),
@@ -454,7 +472,9 @@ impl<M: CompletionModel> Binding<M> {
         }
 
         // Send final message
-        self.channel.send_final(&thread_id_str).await?;
+        self.channel
+            .send_final(&thread_id_str, draft_message_id)
+            .await?;
 
         Ok(LLMResponse::from(stream.choice))
     }

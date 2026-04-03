@@ -31,6 +31,30 @@ pub trait Channel: Send + Sync {
         false
     }
 
+    /// Send an initial draft message. Returns a platform-specific message ID for later edits.
+    async fn send_draft(&self, _message: &OutgoingResponse) -> Result<Option<String>> {
+        Ok(None)
+    }
+
+    /// Update a previously sent draft message with new accumulated content.
+    ///
+    /// Returns `Ok(None)` to keep the current draft message ID, or
+    /// `Ok(Some(new_id))` when a continuation message was created
+    /// (e.g. after hitting a platform edit-count cap).
+    async fn update_draft(&self, _message_id: &str, _text: &str) -> Result<Option<String>> {
+        Ok(None)
+    }
+
+    /// Finalize a draft with the complete response (e.g. apply Markdown formatting).
+    async fn finalize_draft(&self, _message_id: &str, _text: &str) -> Result<()> {
+        Ok(())
+    }
+
+    /// Cancel and remove a previously sent draft message if the channel supports it.
+    async fn cancel_draft(&self, _message_id: &str) -> Result<()> {
+        Ok(())
+    }
+
     /// Platform name (e.g., "websocket", "discord").
     fn platform(&self) -> &str;
 }

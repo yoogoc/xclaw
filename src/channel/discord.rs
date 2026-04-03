@@ -168,6 +168,22 @@ impl Channel for DiscordChannel {
         false
     }
 
+    async fn send_draft(&self, _message: &OutgoingResponse) -> Result<Option<String>> {
+        Ok(None)
+    }
+
+    async fn update_draft(&self, _message_id: &str, _text: &str) -> Result<Option<String>> {
+        Ok(None)
+    }
+
+    async fn finalize_draft(&self, _message_id: &str, _text: &str) -> Result<()> {
+        Ok(())
+    }
+
+    async fn cancel_draft(&self, _message_id: &str) -> Result<()> {
+        Ok(())
+    }
+
     fn platform(&self) -> &str {
         "discord"
     }

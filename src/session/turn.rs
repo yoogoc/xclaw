@@ -61,6 +61,8 @@ pub struct Turn {
     pub image_content_parts: Vec<ContentPart>,
 
     pub current_tool_iterations: usize,
+
+    draft_message_id: Option<String>,
 }
 
 impl Turn {
@@ -86,6 +88,7 @@ impl Turn {
             error: None,
             image_content_parts: Vec::new(),
             current_tool_iterations: 0,
+            draft_message_id: None,
         }
     }
 
@@ -111,6 +114,10 @@ impl Turn {
         self.state = TurnState::Interrupted;
         self.completed_at = Some(Utc::now());
         self.image_content_parts.clear();
+    }
+
+    pub fn record_draft_message_id(&mut self, draft_message_id: Option<String>) {
+        self.draft_message_id = draft_message_id;
     }
 
     /// Record a tool call.

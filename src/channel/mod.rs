@@ -41,7 +41,45 @@ impl ChannelManager {
         self.channel.reaction(message_id, '👀').await
     }
 
-    pub async fn send_chunk(&self, thread_id: &str, chunk: &str) -> anyhow::Result<()> {
+    pub async fn send(&self, thread_id: &str, content: &str) -> anyhow::Result<()> {
+        self.channel
+            .send(OutgoingResponse {
+                content: content.to_string(),
+                thread_id: Some(thread_id.to_string()),
+                is_draft: false,
+                attachments: vec![],
+                metadata: serde_json::Value::Null,
+            })
+            .await
+    }
+
+    pub async fn start_chunk(&self, thread_id: &str) -> anyhow::Result<Option<String>> {
+        if self.channel.supports_draft_updates() {
+            return self
+                .channel
+                .send_draft(&OutgoingResponse {
+                    content: "...".to_string(),
+                    thread_id: Some(thread_id.to_string()),
+                    is_draft: true,
+                    attachments: vec![],
+                    metadata: serde_json::Value::Null,
+                })
+                .await;
+        }
+        Ok(None)
+    }
+
+    pub async fn send_chunk(
+        &self,
+        thread_id: &str,
+        draft_message_id: Option<String>,
+        chunk: &str,
+    ) -> anyhow::Result<()> {
+        let mut buffer = self.draft_buffer.write().await;
+        buffer
+            .entry(thread_id.to_string())
+            .or_insert_with(String::new)
+            .push_str(chunk);
         if self.channel.supports_draft_updates() {
             let mut buffer = self.draft_buffer.write().await;
             let content = buffer
@@ -49,32 +87,32 @@ impl ChannelManager {
                 .or_insert_with(String::new);
             content.push_str(chunk);
 
-            self.channel
-                .send(OutgoingResponse {
-                    content: content.clone(),
-                    thread_id: Some(thread_id.to_string()),
-                    is_draft: true,
-                    attachments: vec![],
-                    metadata: serde_json::Value::Null,
-                })
-                .await?;
-        } else {
-            let mut buffer = self.draft_buffer.write().await;
-            buffer
-                .entry(thread_id.to_string())
-                .or_insert_with(String::new)
-                .push_str(chunk);
+            if let Some(message_id) = draft_message_id {
+                self.channel.update_draft(&message_id, &content).await?;
+            }
         }
         Ok(())
     }
 
-    pub async fn send_final(&self, thread_id: &str) -> anyhow::Result<()> {
-        let content = {
+    pub async fn send_final(
+        &self,
+        thread_id: &str,
+        draft_message_id: Option<String>,
+    ) -> anyhow::Result<()> {
+        let mut content = {
             let mut buffer = self.draft_buffer.write().await;
             buffer.remove(thread_id).unwrap_or_default()
         };
 
-        if !content.is_empty() {
+        if content.is_empty() {
+            content = "No Response".to_string();
+        }
+
+        if self.channel.supports_draft_updates() {
+            if let Some(message_id) = draft_message_id {
+                self.channel.finalize_draft(&message_id, &content).await?;
+            }
+        } else {
             self.channel
                 .send(OutgoingResponse {
                     content,
