@@ -99,31 +99,36 @@ impl ChannelManager {
         thread_id: &str,
         draft_message_id: Option<String>,
     ) -> anyhow::Result<()> {
-        let mut content = {
-            let mut buffer = self.draft_buffer.write().await;
-            buffer.remove(thread_id).unwrap_or_default()
+        let result = {
+            let mut content = {
+                let mut buffer = self.draft_buffer.write().await;
+                buffer.remove(thread_id).unwrap_or_default()
+            };
+
+            if content.is_empty() {
+                content = "No Response".to_string();
+            }
+
+            if self.channel.supports_draft_updates() {
+                if let Some(message_id) = draft_message_id {
+                    self.channel.finalize_draft(&message_id, &content).await
+                } else {
+                    Ok(())
+                }
+            } else {
+                self.channel
+                    .send(OutgoingResponse {
+                        content,
+                        thread_id: Some(thread_id.to_string()),
+                        is_draft: false,
+                        attachments: vec![],
+                        metadata: serde_json::Value::Null,
+                    })
+                    .await
+            }
         };
 
-        if content.is_empty() {
-            content = "No Response".to_string();
-        }
-
-        if self.channel.supports_draft_updates() {
-            if let Some(message_id) = draft_message_id {
-                self.channel.finalize_draft(&message_id, &content).await?;
-            }
-        } else {
-            self.channel
-                .send(OutgoingResponse {
-                    content,
-                    thread_id: Some(thread_id.to_string()),
-                    is_draft: false,
-                    attachments: vec![],
-                    metadata: serde_json::Value::Null,
-                })
-                .await?;
-        }
-
-        self.channel.end_typing().await
+        self.channel.end_typing().await?;
+        result
     }
 }

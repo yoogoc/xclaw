@@ -1,11 +1,20 @@
 use crate::channel::{MessageStream, OutgoingResponse};
 use anyhow::Result;
 
+pub enum ReplySize {
+    Limit(usize),
+    Unlimit
+}
+
 #[async_trait]
 pub trait Channel: Send + Sync {
     /// Start the channel (connect, authenticate, etc.).
     async fn start(&self) -> Result<()> {
         Ok(())
+    }
+
+    fn limit_reply_size(&self) -> ReplySize {
+        ReplySize::Unlimit
     }
 
     /// Receive incoming messages as a stream.
