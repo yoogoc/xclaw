@@ -5,6 +5,7 @@ use crate::tools::tool::Tool;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use crate::tools::web_search_tool::WebSearch;
 
 pub struct ToolRegistry {
     tools: RwLock<HashMap<String, Arc<dyn Tool>>>,
@@ -19,6 +20,7 @@ impl ToolRegistry {
         registry.register_sync(Arc::new(FileRead::new()));
         registry.register_sync(Arc::new(ListDir::new()));
         registry.register_sync(Arc::new(FileWrite::new()));
+        registry.register_sync(Arc::new(WebSearch::new("duckduckgo".to_string())));
 
         registry
     }
