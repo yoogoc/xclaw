@@ -8,6 +8,7 @@ pub enum FinishReason {
     Stop,
     Length,
     ToolUse,
+    Reasoning,
     ContentFilter,
     Unknown,
 }
@@ -62,10 +63,20 @@ impl LLMResponse {
             Some(thinking_parts.join(""))
         };
 
-        let finish_reason = if !tool_calls.is_empty() {
-            FinishReason::ToolUse
+        let finish_reason = if tool_calls.is_empty() {
+            // FinishReason::Stop
+            if content.is_none() {
+                if thinking.is_none() {
+                    // no content, no reasoning, no tool call!!!
+                    FinishReason::Stop
+                } else {
+                    FinishReason::Reasoning
+                }
+            } else {
+                FinishReason::Stop
+            }
         } else {
-            FinishReason::Stop
+            FinishReason::ToolUse
         };
 
         Self {

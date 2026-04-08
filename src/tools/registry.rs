@@ -1,4 +1,6 @@
 use crate::tools::file_read_tool::FileRead;
+use crate::tools::file_write_tool::FileWrite;
+use crate::tools::list_dir_tool::ListDir;
 use crate::tools::tool::Tool;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -15,6 +17,8 @@ impl ToolRegistry {
         };
 
         registry.register_sync(Arc::new(FileRead::new()));
+        registry.register_sync(Arc::new(ListDir::new()));
+        registry.register_sync(Arc::new(FileWrite::new()));
 
         registry
     }

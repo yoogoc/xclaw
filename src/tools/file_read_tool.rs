@@ -1,46 +1,11 @@
 use crate::errors::tool::ToolError;
 use crate::tools::{require_str, Tool, ToolOutput};
 use crate::utils::path::validate_path;
-use crate::workspace::paths as ws_paths;
 use std::path::PathBuf;
 use tokio::fs;
 
-/// Well-known workspace filenames that must go through memory_write, not write_file.
-///
-/// If the LLM tries to write one of these via the filesystem tool we reject
-/// immediately and point it at the correct tool.
-const WORKSPACE_FILES: &[&str] = &[
-    ws_paths::HEARTBEAT,
-    ws_paths::MEMORY,
-    ws_paths::IDENTITY,
-    ws_paths::SOUL,
-    ws_paths::AGENTS,
-    ws_paths::USER,
-    ws_paths::README,
-];
-
-/// Check whether `path` resolves to a workspace file that should be written
-/// through `memory_write` instead of `write_file`.
-#[allow(unused)]
-fn is_workspace_path(path: &str) -> bool {
-    let filename = std::path::Path::new(path)
-        .file_name()
-        .and_then(|f| f.to_str())
-        .unwrap_or(path);
-
-    WORKSPACE_FILES.contains(&filename)
-        || path.starts_with("daily/")
-        || path.starts_with("context/")
-}
-
 /// Maximum file size for reading (1MB).
 const MAX_READ_SIZE: u64 = 1024 * 1024;
-
-/// Maximum file size for writing (5MB).
-// const MAX_WRITE_SIZE: usize = 5 * 1024 * 1024;
-
-/// Maximum directory listing entries.
-// const MAX_DIR_ENTRIES: usize = 500;
 
 /// Read file contents tool.
 #[derive(Debug, Default)]

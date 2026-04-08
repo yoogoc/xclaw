@@ -326,7 +326,13 @@ impl<M: CompletionModel> Binding<M> {
                     });
                 }
                 FinishReason::Length => continue,
-                _ => return Err(anyhow::anyhow!("LLM error: {:?}", resp.finish_reason)),
+                FinishReason::Reasoning => continue,
+                FinishReason::ContentFilter => {
+                    return Err(anyhow::anyhow!("LLM error: {:?}", resp.finish_reason));
+                }
+                FinishReason::Unknown => {
+                    return Err(anyhow::anyhow!("LLM error: {:?}", resp.finish_reason));
+                }
             }
         }
 
