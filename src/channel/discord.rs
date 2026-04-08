@@ -10,6 +10,9 @@ use serenity::http::{Http, HttpBuilder};
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock, mpsc};
 use uuid::Uuid;
+use crate::utils::chunk_by_chars;
+
+const LIMIT_REPLY_SIZE: usize = 2000;
 
 pub struct DiscordChannel {
     message_rx: Arc<RwLock<mpsc::UnboundedReceiver<IncomingMessage>>>,
@@ -139,7 +142,7 @@ impl Channel for DiscordChannel {
     }
 
     fn limit_reply_size(&self) -> ReplySize {
-        ReplySize::Limit(2000)
+        ReplySize::Limit(LIMIT_REPLY_SIZE)
     }
 
     async fn receive(&self) -> Result<MessageStream> {
@@ -198,7 +201,9 @@ impl Channel for DiscordChannel {
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("Discord client not initialized"))?;
 
-        self.config.channel_id.say(http, response.content).await?;
+        for content in chunk_by_chars(&response.content, LIMIT_REPLY_SIZE) {
+            self.config.channel_id.say(http, content).await?;
+        }
 
         Ok(())
     }

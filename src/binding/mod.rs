@@ -301,6 +301,7 @@ impl<M: CompletionModel> Binding<M> {
         };
 
         for iteration in current_iteration..self.agent.config.max_iterations {
+            debug!("Running agent iteration {}", iteration);
             // Update iteration count
             {
                 let mut sess = session.lock().await;

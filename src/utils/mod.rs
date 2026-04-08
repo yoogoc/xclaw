@@ -18,3 +18,11 @@ pub fn truncate_preview(s: &str, max_bytes: usize) -> String {
 
     result
 }
+
+pub fn chunk_by_chars(s: &str, size: usize) -> Vec<String> {
+    s.chars()
+     .collect::<Vec<char>>()
+     .chunks(size)
+     .map(|chunk| chunk.iter().collect::<String>())
+     .collect()
+}
