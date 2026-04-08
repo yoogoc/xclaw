@@ -11,8 +11,10 @@ pub mod skills;
 pub mod storage;
 pub mod supervisor;
 pub mod tools;
+pub mod workspace;
 
 pub mod utils;
+pub mod errors;
 
 #[macro_use]
 extern crate log;

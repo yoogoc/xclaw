@@ -10,10 +10,11 @@ use crate::binding::message_convert::to_rig_messages;
 use crate::channel::{ChannelManager, IncomingMessage};
 use crate::llm::{FinishReason, LLMResponse};
 use crate::session::{PendingApproval, Session, SessionManager, ThreadState};
-use crate::tools::ApprovalRequirement;
+use crate::tools::{ApprovalRequirement, ToolRegistry};
 use futures::StreamExt;
 use rig::OneOrMany;
-use rig::completion::{CompletionModel, CompletionRequest};
+use rig::completion::{CompletionModel, CompletionRequest, ToolDefinition};
+use rig::message::ReasoningContent;
 use rig::streaming::StreamedAssistantContent;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -23,6 +24,7 @@ pub struct Binding<M: CompletionModel> {
     agent: Arc<Agent<M>>,
     channel: Arc<ChannelManager>,
     session_manager: Arc<SessionManager>,
+    tool_registry: Arc<ToolRegistry>,
     binding_id: String,
     user_tz: chrono_tz::Tz,
 }
@@ -39,6 +41,7 @@ impl<M: CompletionModel> Binding<M> {
             agent,
             channel,
             session_manager,
+            tool_registry: Arc::new(ToolRegistry::new()),
             binding_id: binding_id.into(),
             user_tz: tz,
         }
@@ -389,6 +392,7 @@ impl<M: CompletionModel> Binding<M> {
                 }
 
                 // Execute
+                debug!("execute tool!");
                 let result = tool.execute(approval.parameters.clone()).await;
 
                 // Record result
@@ -398,9 +402,14 @@ impl<M: CompletionModel> Binding<M> {
                         if let Some(turn) = thread.last_turn_mut() {
                             match result {
                                 Ok(output) => {
-                                    turn.record_tool_result(serde_json::to_value(output)?)
+                                    turn.record_tool_result(serde_json::to_value(output)?);
+                                    drop(sess);
+                                    self.call_llm(session.clone(), thread_id).await?;
                                 }
-                                Err(e) => turn.record_tool_error(e.to_string()),
+                                Err(e) => {
+                                    turn.record_tool_error(e.to_string());
+                                    drop(sess);
+                                }
                             }
                         }
                     }
@@ -436,7 +445,7 @@ impl<M: CompletionModel> Binding<M> {
                 preamble: None,
                 chat_history: OneOrMany::many(rig_messages)?,
                 documents: vec![],
-                tools: vec![],
+                tools: self.convert_available_tool().await?,
                 temperature: None,
                 max_tokens: None,
                 tool_choice: None,
@@ -456,17 +465,63 @@ impl<M: CompletionModel> Binding<M> {
             turn.record_draft_message_id(draft_message_id.clone());
         }
 
-
         while let Some(result) = stream.next().await {
             match result {
-                Ok(content) => {
-                    if let StreamedAssistantContent::Text(text) = content {
+                Ok(content) => match content {
+                    StreamedAssistantContent::Text(text) => {
                         debug!("Received message: {}", text);
                         self.channel
                             .send_chunk(&thread_id_str, draft_message_id.clone(), &text.text)
                             .await?;
                     }
-                }
+                    StreamedAssistantContent::ToolCall {
+                        tool_call,
+                        internal_call_id: _,
+                    } => {
+                        debug!(
+                            "Received ToolCall: {}, parameter: {:?}",
+                            tool_call.function.name, tool_call.function.arguments
+                        );
+                    }
+                    StreamedAssistantContent::ToolCallDelta {
+                        id,
+                        internal_call_id: _,
+                        content,
+                    } => {
+                        debug!("Received ToolCallDelta: {}, parameter: {:?}", id, content);
+                    }
+                    StreamedAssistantContent::Reasoning(reasoning) => {
+                        for content in reasoning.content {
+                            match content {
+                                ReasoningContent::Text { text, signature: _ } => {
+                                    debug!("Received reasoning(text): {:?}", text);
+                                    self.channel
+                                        .send_chunk(&thread_id_str, draft_message_id.clone(), &text)
+                                        .await?;
+                                }
+                                ReasoningContent::Encrypted(encrypted) => {
+                                    debug!("Received reasoning(encrypted): {:?}", encrypted);
+                                }
+                                ReasoningContent::Redacted { data } => {
+                                    debug!("Received reasoning(data): {:?}", data);
+                                }
+                                ReasoningContent::Summary(summary) => {
+                                    debug!("Received reasoning(summary): {:?}", summary);
+                                    self.channel
+                                        .send_chunk(
+                                            &thread_id_str,
+                                            draft_message_id.clone(),
+                                            &summary,
+                                        )
+                                        .await?;
+                                }
+                                _ => unreachable!("Unexpected content type"),
+                            }
+                        }
+                    }
+                    StreamedAssistantContent::ReasoningDelta { .. } => {}
+                    StreamedAssistantContent::Final(_) => {}
+                },
                 Err(e) => return Err(e.into()),
             }
         }
@@ -477,5 +532,19 @@ impl<M: CompletionModel> Binding<M> {
             .await?;
 
         Ok(LLMResponse::from(stream.choice))
+    }
+
+    async fn convert_available_tool(&self) -> anyhow::Result<Vec<ToolDefinition>> {
+        let tools = self.tool_registry.all_tools().await;
+
+        let tool_definitions = tools
+            .iter()
+            .map(|tool| ToolDefinition {
+                name: tool.name().to_string(),
+                description: tool.description().to_string(),
+                parameters: tool.parameters_schema(),
+            })
+            .collect();
+        Ok(tool_definitions)
     }
 }

@@ -1,3 +1,5 @@
+pub mod path;
+
 pub fn truncate_preview(s: &str, max_bytes: usize) -> String {
     if s.len() <= max_bytes {
         return s.to_string();

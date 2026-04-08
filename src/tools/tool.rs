@@ -1,17 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
-
-/// Output from a tool execution.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ToolOutput {
-    /// The result data.
-    pub result: serde_json::Value,
-    /// Time taken.
-    pub duration: Duration,
-    /// Raw output before sanitization (for debugging).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub raw: Option<String>,
-}
+use crate::errors::tool::ToolError;
+use crate::tools::ToolOutput;
 
 /// How much approval a specific tool invocation requires.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -56,7 +46,7 @@ pub trait Tool: Send + Sync {
     fn parameters_schema(&self) -> serde_json::Value;
 
     /// Execute the tool with the given parameters.
-    async fn execute(&self, params: serde_json::Value) -> anyhow::Result<ToolOutput>;
+    async fn execute(&self, params: serde_json::Value) -> anyhow::Result<ToolOutput, ToolError>;
 
     fn requires_approval(&self, _params: &serde_json::Value) -> ApprovalRequirement {
         ApprovalRequirement::Never
@@ -87,4 +77,11 @@ pub trait Tool: Send + Sync {
             parameters: self.parameters_schema(),
         }
     }
+}
+
+pub fn require_str<'a>(params: &'a serde_json::Value, name: &str) -> anyhow::Result<&'a str, ToolError> {
+    params
+        .get(name)
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| ToolError::InvalidParameters(format!("missing '{}' parameter", name)))
 }
