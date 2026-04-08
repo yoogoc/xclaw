@@ -502,6 +502,7 @@ impl<M: CompletionModel> Binding<M> {
                             match content {
                                 ReasoningContent::Text { text, signature: _ } => {
                                     debug!("Received reasoning(text): {:?}", text);
+                                    let text = format!("<think>{}</think>\n", text);
                                     self.channel
                                         .send_chunk(&thread_id_str, draft_message_id.clone(), &text)
                                         .await?;
@@ -514,6 +515,7 @@ impl<M: CompletionModel> Binding<M> {
                                 }
                                 ReasoningContent::Summary(summary) => {
                                     debug!("Received reasoning(summary): {:?}", summary);
+                                    let summary = format!("<think>{}</think>\n", summary);
                                     self.channel
                                         .send_chunk(
                                             &thread_id_str,
