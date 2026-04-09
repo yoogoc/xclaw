@@ -1,8 +1,8 @@
-# xcraw Hook System 设计文档
+# xclaw Hook System 设计文档
 
 ## 1. 概述
 
-Hook 系统是 xcraw 的核心扩展机制，允许开发者在关键事件点插入自定义逻辑，实现日志记录、指标收集、消息拦截、工具调用监控等功能。
+Hook 系统是 xclaw 的核心扩展机制，允许开发者在关键事件点插入自定义逻辑，实现日志记录、指标收集、消息拦截、工具调用监控等功能。
 
 ### 设计原则
 
@@ -399,7 +399,7 @@ src/hooks/
 ### 9.1 创建自定义 Hook
 
 ```rust
-use xcraw::hooks::*;
+use xclaw::hooks::*;
 
 pub struct AuditHook {
     audit_log: Arc<Mutex<Vec<AuditEntry>>>,
@@ -429,7 +429,7 @@ impl TaskHook for AuditHook {
 
 ```rust
 // main.rs
-use xcraw::hooks::*;
+use xclaw::hooks::*;
 
 #[tokio::main]
 async fn main() {

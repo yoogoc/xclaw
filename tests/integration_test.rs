@@ -1,5 +1,5 @@
-use xcraw::channel::{Channel, DiscordChannel, DiscordConfig, WebSocketChannel};
-use xcraw::session::SessionManager;
+use xclaw::channel::{Channel, DiscordChannel, DiscordConfig, WebSocketChannel};
+use xclaw::session::SessionManager;
 use std::sync::Arc;
 use serenity::all::ChannelId;
 

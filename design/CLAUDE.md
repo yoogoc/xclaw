@@ -8,14 +8,14 @@
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
 | #544 | 1:10 PM | 🔵 | Agent System Configuration Structure | ~479 |
-| #542 | 12:06 PM | 🔵 | xcraw系统架构总览文档 | ~235 |
+| #542 | 12:06 PM | 🔵 | xclaw系统架构总览文档 | ~235 |
 | #537 | 11:55 AM | 🔵 | Agent System Core Architecture and Implementation | ~655 |
-| #536 | 11:54 AM | 🔵 | xcraw多Agent协作完整工作流程 | ~242 |
+| #536 | 11:54 AM | 🔵 | xclaw多Agent协作完整工作流程 | ~242 |
 | #535 | 11:53 AM | 🔵 | Heartbeat Monitoring System Design | ~509 |
 | #534 | " | 🔵 | Agent Definition and Configuration System | ~551 |
-| #533 | " | 🔵 | xcraw配置系统架构 | ~197 |
-| #528 | 11:26 AM | 🔵 | xcraw Hook系统架构设计 | ~206 |
+| #533 | " | 🔵 | xclaw配置系统架构 | ~197 |
+| #528 | 11:26 AM | 🔵 | xclaw Hook系统架构设计 | ~206 |
 | #527 | " | 🔵 | Task Management System Implementation | ~513 |
-| #526 | " | 🔵 | xcraw多Agent协作系统架构设计 | ~176 |
+| #526 | " | 🔵 | xclaw多Agent协作系统架构设计 | ~176 |
 | #525 | 11:25 AM | 🔵 | Multi-Agent Collaboration System Architecture | ~454 |
 </claude-mem-context>

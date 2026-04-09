@@ -25,7 +25,7 @@ impl Config {
         self.storage
             .as_ref()
             .and_then(|s| s.database_url.clone())
-            .unwrap_or_else(|| "workspace/storage/xcraw.db".to_string())
+            .unwrap_or_else(|| "workspace/storage/xclaw.db".to_string())
     }
 }
 

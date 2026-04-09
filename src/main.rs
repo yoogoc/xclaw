@@ -3,26 +3,26 @@ use log::info;
 use serenity::all::ChannelId;
 use std::sync::Arc;
 use tracing_subscriber::{fmt, EnvFilter};
-use xcraw::agent::Agent;
-use xcraw::binding::Binding;
-use xcraw::channel::{ChannelManager, DiscordChannel, DiscordConfig, WebSocketChannel};
-use xcraw::config::Config;
-use xcraw::hooks::HookRegistry;
-use xcraw::llm::LlmProvider;
-use xcraw::session::SessionManager;
-use xcraw::storage::Database;
-use xcraw::tools::ToolRegistry;
+use xclaw::agent::Agent;
+use xclaw::binding::Binding;
+use xclaw::channel::{ChannelManager, DiscordChannel, DiscordConfig, WebSocketChannel};
+use xclaw::config::Config;
+use xclaw::hooks::HookRegistry;
+use xclaw::llm::LlmProvider;
+use xclaw::session::SessionManager;
+use xclaw::storage::Database;
+use xclaw::tools::ToolRegistry;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_span_events(fmt::format::FmtSpan::NONE)
         // .with_env_filter(EnvFilter::builder().parse("debug,tracing::span=off")?)
-        .with_env_filter(EnvFilter::builder().parse("xcraw=debug,serenity=warn")?)
+        .with_env_filter(EnvFilter::builder().parse("xclaw=debug,serenity=warn")?)
         .init();
     dotenv::dotenv().ok();
 
-    info!("Starting xcraw");
+    info!("Starting xclaw");
 
     // Load config
     let config = Config::load("config.yaml")?;
@@ -84,7 +84,7 @@ async fn main() -> Result<()> {
         tasks.push(task);
     }
 
-    info!("xcraw started successfully");
+    info!("xclaw started successfully");
 
     // Keep running
     tokio::signal::ctrl_c().await?;
@@ -93,7 +93,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn create_channel(channel_config: &xcraw::config::ChannelConfig) -> Result<ChannelManager> {
+async fn create_channel(channel_config: &xclaw::config::ChannelConfig) -> Result<ChannelManager> {
     match channel_config.channel_type.as_str() {
         "discord" => {
             let channel = DiscordChannel::new(DiscordConfig {
@@ -112,7 +112,7 @@ async fn create_channel(channel_config: &xcraw::config::ChannelConfig) -> Result
 }
 
 fn create_llm_provider(
-    llm_config: &xcraw::config::LlmConfig,
+    llm_config: &xclaw::config::LlmConfig,
 ) -> Result<Arc<LlmProvider<rig::providers::anthropic::completion::CompletionModel>>> {
     use rig::client::CompletionClient;
     use rig::providers::anthropic::Client;
@@ -129,12 +129,12 @@ fn create_llm_provider(
 }
 
 fn create_agent(
-    _agent_config: &xcraw::config::AgentConfig,
+    _agent_config: &xclaw::config::AgentConfig,
     llm: Arc<LlmProvider<rig::providers::anthropic::completion::CompletionModel>>,
 ) -> Result<Arc<Agent<rig::providers::anthropic::completion::CompletionModel>>> {
     use std::path::PathBuf;
 
-    let workspace = Arc::new(xcraw::agent::workspace::Workspace::new(PathBuf::from(
+    let workspace = Arc::new(xclaw::agent::workspace::Workspace::new(PathBuf::from(
         "workspace",
     )));
     let hooks = Arc::new(HookRegistry::new());
@@ -149,7 +149,7 @@ fn create_agent(
         hooks,
         tools,
         heartbeat: None,
-        config: xcraw::agent::config::AgentLoopConfig {
+        config: xclaw::agent::config::AgentLoopConfig {
             max_iterations: 10,
             enable_tool_intent_nudge: false,
             max_tool_intent_nudges: 3,

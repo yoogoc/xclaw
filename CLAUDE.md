@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**xcraw** is an AI Agent framework written in Rust, inspired by OpenClaw/ZeroClaw. It enables multi-agent collaboration through a configuration-driven architecture where agents communicate via chat platforms (Discord, Slack, Matrix).
+**xclaw** is an AI Agent framework written in Rust, inspired by OpenClaw/ZeroClaw. It enables multi-agent collaboration through a configuration-driven architecture where agents communicate via chat platforms (Discord, Slack, Matrix).
 
 ## Build and Development Commands
 

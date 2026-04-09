@@ -596,7 +596,7 @@ dir = "migrations"
 ### 8.2 创建迁移
 
 ```bash
-diesel setup --database-url=workspace/xcraw.db
+diesel setup --database-url=workspace/xclaw.db
 
 # 单个迁移包含所有表（原子性）
 diesel migration generate create_session_tables
@@ -617,10 +617,10 @@ diesel migration generate create_session_tables
 
 ```yaml
 storage:
-  database_url: "workspace/storage/xcraw.db"   # 相对于工作目录
+  database_url: "workspace/storage/xclaw.db"   # 相对于工作目录
 ```
 
-不配置时默认使用 `workspace/storage/xcraw.db`。
+不配置时默认使用 `workspace/storage/xclaw.db`。
 
 ---
 
