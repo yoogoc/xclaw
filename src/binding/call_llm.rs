@@ -12,18 +12,11 @@ use tokio::sync::Mutex;
 use uuid::Uuid;
 
 impl<M: CompletionModel> Binding<M> {
-    pub(crate) async fn call_llm(
-        &self,
-        session: Arc<Mutex<Session>>,
-        thread_id: Uuid,
-    ) -> anyhow::Result<LLMResponse> {
+    pub(crate) async fn call_llm(&self, session: Arc<Mutex<Session>>, thread_id: Uuid) -> anyhow::Result<LLMResponse> {
         // Build context from thread
         let messages = {
             let sess = session.lock().await;
-            sess.threads
-                .get(&thread_id)
-                .map(|t| t.messages())
-                .unwrap_or_default()
+            sess.threads.get(&thread_id).map(|t| t.messages()).unwrap_or_default()
         };
 
         // Convert to rig messages
@@ -62,24 +55,12 @@ impl<M: CompletionModel> Binding<M> {
                 Ok(content) => match content {
                     StreamedAssistantContent::Text(text) => {
                         debug!("Received message: {}", text);
-                        self.channel
-                            .send_chunk(&thread_id_str, draft_message_id.clone(), &text.text)
-                            .await?;
+                        self.channel.send_chunk(&thread_id_str, draft_message_id.clone(), &text.text).await?;
                     }
-                    StreamedAssistantContent::ToolCall {
-                        tool_call,
-                        internal_call_id: _,
-                    } => {
-                        debug!(
-                            "Received ToolCall: {}, parameter: {:?}",
-                            tool_call.function.name, tool_call.function.arguments
-                        );
+                    StreamedAssistantContent::ToolCall { tool_call, internal_call_id: _ } => {
+                        debug!("Received ToolCall: {}, parameter: {:?}", tool_call.function.name, tool_call.function.arguments);
                     }
-                    StreamedAssistantContent::ToolCallDelta {
-                        id,
-                        internal_call_id: _,
-                        content,
-                    } => {
+                    StreamedAssistantContent::ToolCallDelta { id, internal_call_id: _, content } => {
                         debug!("Received ToolCallDelta: {}, parameter: {:?}", id, content);
                     }
                     StreamedAssistantContent::Reasoning(reasoning) => {
@@ -91,9 +72,7 @@ impl<M: CompletionModel> Binding<M> {
                                     }
                                     debug!("Received reasoning(text): {:?}", text);
                                     let text = format!("<think>{}</think>\n", text);
-                                    self.channel
-                                        .send_chunk(&thread_id_str, draft_message_id.clone(), &text)
-                                        .await?;
+                                    self.channel.send_chunk(&thread_id_str, draft_message_id.clone(), &text).await?;
                                 }
                                 ReasoningContent::Encrypted(encrypted) => {
                                     debug!("Received reasoning(encrypted): {:?}", encrypted);
@@ -107,13 +86,7 @@ impl<M: CompletionModel> Binding<M> {
                                     }
                                     debug!("Received reasoning(summary): {:?}", summary);
                                     let summary = format!("<think>{}</think>\n", summary);
-                                    self.channel
-                                        .send_chunk(
-                                            &thread_id_str,
-                                            draft_message_id.clone(),
-                                            &summary,
-                                        )
-                                        .await?;
+                                    self.channel.send_chunk(&thread_id_str, draft_message_id.clone(), &summary).await?;
                                 }
                                 _ => unreachable!("Unexpected content type"),
                             }
@@ -127,9 +100,7 @@ impl<M: CompletionModel> Binding<M> {
         }
 
         // Send final message
-        self.channel
-            .send_final(&thread_id_str, draft_message_id)
-            .await?;
+        self.channel.send_final(&thread_id_str, draft_message_id).await?;
 
         Ok(LLMResponse::from(stream.choice))
     }

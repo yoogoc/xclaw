@@ -67,12 +67,7 @@ impl Thread {
     }
 
     /// Create a thread with routing identities.
-    pub fn with_routing(
-        session_id: Uuid,
-        user_id: impl Into<String>,
-        channel: impl Into<String>,
-        external_thread_id: Option<String>,
-    ) -> Self {
+    pub fn with_routing(session_id: Uuid, user_id: impl Into<String>, channel: impl Into<String>, external_thread_id: Option<String>) -> Self {
         let now = Utc::now();
         Self {
             id: Uuid::new_v4(),
@@ -200,10 +195,7 @@ impl Thread {
             if turn.image_content_parts.is_empty() {
                 messages.push(ChatMessage::user(&turn.user_input));
             } else {
-                messages.push(ChatMessage::user_with_parts(
-                    &turn.user_input,
-                    turn.image_content_parts.clone(),
-                ));
+                messages.push(ChatMessage::user_with_parts(&turn.user_input, turn.image_content_parts.clone()));
             }
 
             if !turn.tool_calls.is_empty() {
@@ -307,8 +299,7 @@ impl Thread {
                                     // Store as result — the error/success distinction
                                     // is for the live turn only; restored context just
                                     // needs the content the LLM originally saw.
-                                    turn.tool_calls[idx].result =
-                                        Some(serde_json::Value::String(tool_msg.content.clone()));
+                                    turn.tool_calls[idx].result = Some(serde_json::Value::String(tool_msg.content.clone()));
                                 }
                             }
                             pos += 1;
@@ -319,9 +310,7 @@ impl Thread {
                 }
 
                 // Check if next is the final assistant response for this turn
-                let is_final_assistant = iter
-                    .peek()
-                    .is_some_and(|n| n.role == Role::Assistant && n.tool_calls.is_none());
+                let is_final_assistant = iter.peek().is_some_and(|n| n.role == Role::Assistant && n.tool_calls.is_none());
                 if is_final_assistant && let Some(response) = iter.next() {
                     turn.complete(Some(response.content));
                 }

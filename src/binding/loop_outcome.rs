@@ -10,8 +10,5 @@ pub enum LoopOutcome {
     /// Max iterations exceeded.
     MaxIterations,
     /// A tool requires user approval before continuing (chat delegate only).
-    ToolCall {
-        approvals: Vec<Box<PendingApproval>>,
-        not_found: Vec<String>,
-    },
+    ToolCall { approvals: Vec<Box<PendingApproval>>, not_found: Vec<String> },
 }

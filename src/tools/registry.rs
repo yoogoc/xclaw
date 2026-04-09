@@ -2,10 +2,10 @@ use crate::tools::file_read_tool::FileRead;
 use crate::tools::file_write_tool::FileWrite;
 use crate::tools::list_dir_tool::ListDir;
 use crate::tools::tool::Tool;
+use crate::tools::web_search_tool::WebSearch;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use crate::tools::web_search_tool::WebSearch;
 
 pub struct ToolRegistry {
     tools: RwLock<HashMap<String, Arc<dyn Tool>>>,
@@ -13,9 +13,7 @@ pub struct ToolRegistry {
 
 impl ToolRegistry {
     pub fn new() -> Self {
-        let registry = ToolRegistry {
-            tools: RwLock::new(HashMap::new()),
-        };
+        let registry = ToolRegistry { tools: RwLock::new(HashMap::new()) };
 
         registry.register_sync(Arc::new(FileRead::new()));
         registry.register_sync(Arc::new(ListDir::new()));

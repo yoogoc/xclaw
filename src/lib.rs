@@ -13,8 +13,8 @@ pub mod supervisor;
 pub mod tools;
 pub mod workspace;
 
-pub mod utils;
 pub mod errors;
+pub mod utils;
 
 #[macro_use]
 extern crate log;

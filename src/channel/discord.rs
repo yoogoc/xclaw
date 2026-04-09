@@ -1,16 +1,13 @@
 use crate::channel::{Channel, IncomingMessage, MessageStream, OutgoingResponse, ReplySize};
+use crate::utils::chunk_by_chars;
 use anyhow::Result;
 use async_trait::async_trait;
-use serenity::all::{
-    ChannelId, ConnectionStage, Context, EventHandler, GatewayIntents, Message, MessageId, Ready,
-    ResumedEvent, ShardStageUpdateEvent, Typing,
-};
+use serenity::all::{ChannelId, ConnectionStage, Context, EventHandler, GatewayIntents, Message, MessageId, Ready, ResumedEvent, ShardStageUpdateEvent, Typing};
 use serenity::client::ClientBuilder;
 use serenity::http::{Http, HttpBuilder};
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock, mpsc};
 use uuid::Uuid;
-use crate::utils::chunk_by_chars;
 
 const LIMIT_REPLY_SIZE: usize = 2000;
 
@@ -158,9 +155,7 @@ impl Channel for DiscordChannel {
 
     async fn start_typing(&self) -> Result<()> {
         let http = self.http.lock().await;
-        let http = http
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("Discord client not initialized"))?;
+        let http = http.as_ref().ok_or_else(|| anyhow::anyhow!("Discord client not initialized"))?;
 
         let typing = self.config.channel_id.start_typing(http);
         *self.typing.lock().await = Some(typing);
@@ -182,24 +177,17 @@ impl Channel for DiscordChannel {
 
     async fn reaction(&self, message_id: &str, emoji: char) -> Result<()> {
         let http = self.http.lock().await;
-        let http = http
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("Discord client not initialized"))?;
+        let http = http.as_ref().ok_or_else(|| anyhow::anyhow!("Discord client not initialized"))?;
 
         let message_id = MessageId::new(message_id.parse()?);
-        self.config
-            .channel_id
-            .create_reaction(http, message_id, emoji)
-            .await?;
+        self.config.channel_id.create_reaction(http, message_id, emoji).await?;
 
         Ok(())
     }
 
     async fn send(&self, response: OutgoingResponse) -> Result<()> {
         let http = self.http.lock().await;
-        let http = http
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("Discord client not initialized"))?;
+        let http = http.as_ref().ok_or_else(|| anyhow::anyhow!("Discord client not initialized"))?;
 
         for content in chunk_by_chars(&response.content, LIMIT_REPLY_SIZE) {
             self.config.channel_id.say(http, content).await?;

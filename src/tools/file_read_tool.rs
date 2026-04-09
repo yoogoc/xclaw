@@ -1,5 +1,5 @@
 use crate::errors::tool::ToolError;
-use crate::tools::{require_str, Tool, ToolOutput};
+use crate::tools::{Tool, ToolOutput, require_str};
 use crate::utils::path::validate_path;
 use std::path::PathBuf;
 use tokio::fs;
@@ -68,12 +68,10 @@ impl Tool for FileRead {
         let path = validate_path(path_str, self.base_dir.as_deref())?;
 
         // Check file size
-        let metadata = fs::metadata(&path)
-            .await
-            .map_err(|e| {
-                error!("Failed to get metadata of file: {}", e);
-                ToolError::ExecutionFailed(format!("Cannot access file: {}", e))
-            })?;
+        let metadata = fs::metadata(&path).await.map_err(|e| {
+            error!("Failed to get metadata of file: {}", e);
+            ToolError::ExecutionFailed(format!("Cannot access file: {}", e))
+        })?;
 
         if metadata.len() > MAX_READ_SIZE {
             return Err(ToolError::ExecutionFailed(format!(
@@ -84,30 +82,16 @@ impl Tool for FileRead {
         }
 
         // Read file
-        let content = fs::read_to_string(&path)
-            .await
-            .map_err(|e| ToolError::ExecutionFailed(format!("Failed to read file: {}", e)))?;
+        let content = fs::read_to_string(&path).await.map_err(|e| ToolError::ExecutionFailed(format!("Failed to read file: {}", e)))?;
 
         // Apply offset and limit
         let lines: Vec<&str> = content.lines().collect();
         let total_lines = lines.len();
 
-        let start_line = if offset > 0 {
-            offset.saturating_sub(1)
-        } else {
-            0
-        };
-        let end_line = if let Some(lim) = limit {
-            (start_line + lim as usize).min(total_lines)
-        } else {
-            total_lines
-        };
+        let start_line = if offset > 0 { offset.saturating_sub(1) } else { 0 };
+        let end_line = if let Some(lim) = limit { (start_line + lim as usize).min(total_lines) } else { total_lines };
 
-        let selected_lines: Vec<String> = lines[start_line..end_line]
-            .iter()
-            .enumerate()
-            .map(|(i, line)| format!("{:>6}│ {}", start_line + i + 1, line))
-            .collect();
+        let selected_lines: Vec<String> = lines[start_line..end_line].iter().enumerate().map(|(i, line)| format!("{:>6}│ {}", start_line + i + 1, line)).collect();
 
         let result = serde_json::json!({
             "content": selected_lines.join("\n"),
@@ -118,5 +102,4 @@ impl Tool for FileRead {
 
         Ok(ToolOutput::success(result, start.elapsed()))
     }
-
 }

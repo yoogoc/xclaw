@@ -2,7 +2,7 @@ use anyhow::Result;
 use log::info;
 use serenity::all::ChannelId;
 use std::sync::Arc;
-use tracing_subscriber::{fmt, EnvFilter};
+use tracing_subscriber::{EnvFilter, fmt};
 use xclaw::agent::Agent;
 use xclaw::binding::Binding;
 use xclaw::channel::{ChannelManager, DiscordChannel, DiscordConfig, WebSocketChannel};
@@ -42,17 +42,9 @@ async fn main() -> Result<()> {
         info!("Creating binding: {}", binding_id);
 
         // Find configs
-        let agent_config = config
-            .agents
-            .iter()
-            .find(|a| a.name == binding_config.agent)
-            .ok_or_else(|| anyhow::anyhow!("Agent not found"))?;
+        let agent_config = config.agents.iter().find(|a| a.name == binding_config.agent).ok_or_else(|| anyhow::anyhow!("Agent not found"))?;
 
-        let llm_config = config
-            .llms
-            .iter()
-            .find(|l| l.name == agent_config.llm)
-            .ok_or_else(|| anyhow::anyhow!("LLM not found"))?;
+        let llm_config = config.llms.iter().find(|l| l.name == agent_config.llm).ok_or_else(|| anyhow::anyhow!("LLM not found"))?;
 
         // Create components
         let llm = create_llm_provider(llm_config)?;
@@ -67,13 +59,7 @@ async fn main() -> Result<()> {
         let channel_manager = Arc::new(create_channel(channel_config).await?);
 
         // Create and spawn binding
-        let binding = Binding::new(
-            agent,
-            channel_manager,
-            session_manager.clone(),
-            binding_id.clone(),
-            chrono_tz::UTC,
-        );
+        let binding = Binding::new(agent, channel_manager, session_manager.clone(), binding_id.clone(), chrono_tz::UTC);
 
         let task = tokio::spawn(async move {
             if let Err(e) = binding.start().await {
@@ -111,9 +97,7 @@ async fn create_channel(channel_config: &xclaw::config::ChannelConfig) -> Result
     }
 }
 
-fn create_llm_provider(
-    llm_config: &xclaw::config::LlmConfig,
-) -> Result<Arc<LlmProvider<rig::providers::anthropic::completion::CompletionModel>>> {
+fn create_llm_provider(llm_config: &xclaw::config::LlmConfig) -> Result<Arc<LlmProvider<rig::providers::anthropic::completion::CompletionModel>>> {
     use rig::client::CompletionClient;
     use rig::providers::anthropic::Client;
 
@@ -123,9 +107,7 @@ fn create_llm_provider(
         .build()?;
     let model = client.completion_model("claude-opus-4-6");
 
-    Ok(Arc::new(LlmProvider {
-        llm: Arc::new(model),
-    }))
+    Ok(Arc::new(LlmProvider { llm: Arc::new(model) }))
 }
 
 fn create_agent(
@@ -134,9 +116,7 @@ fn create_agent(
 ) -> Result<Arc<Agent<rig::providers::anthropic::completion::CompletionModel>>> {
     use std::path::PathBuf;
 
-    let workspace = Arc::new(xclaw::agent::workspace::Workspace::new(PathBuf::from(
-        "workspace",
-    )));
+    let workspace = Arc::new(xclaw::agent::workspace::Workspace::new(PathBuf::from("workspace")));
     let hooks = Arc::new(HookRegistry::new());
     let tools = Arc::new(ToolRegistry::new());
 

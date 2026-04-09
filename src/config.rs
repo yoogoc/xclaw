@@ -22,10 +22,7 @@ pub struct StorageConfig {
 impl Config {
     /// Resolve the database URL from config, falling back to default.
     pub fn database_url(&self) -> String {
-        self.storage
-            .as_ref()
-            .and_then(|s| s.database_url.clone())
-            .unwrap_or_else(|| "workspace/storage/xclaw.db".to_string())
+        self.storage.as_ref().and_then(|s| s.database_url.clone()).unwrap_or_else(|| "workspace/storage/xclaw.db".to_string())
     }
 }
 

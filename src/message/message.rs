@@ -86,20 +86,12 @@ impl ChatMessage {
             content_parts: Vec::new(),
             tool_call_id: None,
             name: None,
-            tool_calls: if tool_calls.is_empty() {
-                None
-            } else {
-                Some(tool_calls)
-            },
+            tool_calls: if tool_calls.is_empty() { None } else { Some(tool_calls) },
         }
     }
 
     /// Create a tool result message.
-    pub fn tool_result(
-        tool_call_id: impl Into<String>,
-        name: impl Into<String>,
-        content: impl Into<String>,
-    ) -> Self {
+    pub fn tool_result(tool_call_id: impl Into<String>, name: impl Into<String>, content: impl Into<String>) -> Self {
         Self {
             role: Role::Tool,
             content: content.into(),

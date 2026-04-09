@@ -61,9 +61,4 @@ diesel::joinable!(threads -> sessions (session_id));
 diesel::joinable!(turns -> threads (thread_id));
 diesel::joinable!(turn_tool_calls -> turns (turn_id));
 
-diesel::allow_tables_to_appear_in_same_query!(
-    sessions,
-    threads,
-    turns,
-    turn_tool_calls,
-);
+diesel::allow_tables_to_appear_in_same_query!(sessions, threads, turns, turn_tool_calls,);

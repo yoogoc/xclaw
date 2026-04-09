@@ -59,15 +59,9 @@ impl Tool for ListDir {
     async fn execute(&self, params: serde_json::Value) -> Result<ToolOutput, ToolError> {
         let path_str = params.get("path").and_then(|v| v.as_str()).unwrap_or(".");
 
-        let recursive = params
-            .get("recursive")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
+        let recursive = params.get("recursive").and_then(|v| v.as_bool()).unwrap_or(false);
 
-        let max_depth = params
-            .get("max_depth")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(3) as usize;
+        let max_depth = params.get("max_depth").and_then(|v| v.as_u64()).unwrap_or(3) as usize;
 
         let start = std::time::Instant::now();
 
@@ -104,36 +98,20 @@ impl Tool for ListDir {
 }
 
 /// Recursively list directory contents.
-async fn list_dir_inner(
-    base: &Path,
-    path: &Path,
-    recursive: bool,
-    max_depth: usize,
-    current_depth: usize,
-    entries: &mut Vec<String>,
-) -> Result<(), ToolError> {
+async fn list_dir_inner(base: &Path, path: &Path, recursive: bool, max_depth: usize, current_depth: usize, entries: &mut Vec<String>) -> Result<(), ToolError> {
     if entries.len() >= MAX_DIR_ENTRIES {
         return Ok(());
     }
 
-    let mut dir = fs::read_dir(path)
-        .await
-        .map_err(|e| ToolError::ExecutionFailed(format!("Failed to read directory: {}", e)))?;
+    let mut dir = fs::read_dir(path).await.map_err(|e| ToolError::ExecutionFailed(format!("Failed to read directory: {}", e)))?;
 
-    while let Some(entry) = dir
-        .next_entry()
-        .await
-        .map_err(|e| ToolError::ExecutionFailed(format!("Failed to read entry: {}", e)))?
-    {
+    while let Some(entry) = dir.next_entry().await.map_err(|e| ToolError::ExecutionFailed(format!("Failed to read entry: {}", e)))? {
         if entries.len() >= MAX_DIR_ENTRIES {
             break;
         }
 
         let entry_path = entry.path();
-        let relative = entry_path
-            .strip_prefix(base)
-            .unwrap_or(&entry_path)
-            .to_string_lossy();
+        let relative = entry_path.strip_prefix(base).unwrap_or(&entry_path).to_string_lossy();
 
         let metadata = entry.metadata().await.ok();
         let is_dir = metadata.as_ref().is_some_and(|m| m.is_dir());
@@ -151,19 +129,8 @@ async fn list_dir_inner(
             // Skip common non-essential directories
             let name = entry.file_name();
             let name_str = name.to_string_lossy();
-            if !matches!(
-                name_str.as_ref(),
-                "node_modules" | "target" | ".git" | "__pycache__" | "venv" | ".venv"
-            ) {
-                Box::pin(list_dir_inner(
-                    base,
-                    &entry_path,
-                    recursive,
-                    max_depth,
-                    current_depth + 1,
-                    entries,
-                ))
-                .await?;
+            if !matches!(name_str.as_ref(), "node_modules" | "target" | ".git" | "__pycache__" | "venv" | ".venv") {
+                Box::pin(list_dir_inner(base, &entry_path, recursive, max_depth, current_depth + 1, entries)).await?;
             }
         }
     }

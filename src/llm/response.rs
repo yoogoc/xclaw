@@ -51,17 +51,9 @@ impl LLMResponse {
             }
         }
 
-        let content = if content_parts.is_empty() {
-            None
-        } else {
-            Some(content_parts.join(""))
-        };
+        let content = if content_parts.is_empty() { None } else { Some(content_parts.join("")) };
 
-        let thinking = if thinking_parts.is_empty() {
-            None
-        } else {
-            Some(thinking_parts.join(""))
-        };
+        let thinking = if thinking_parts.is_empty() { None } else { Some(thinking_parts.join("")) };
 
         let finish_reason = if tool_calls.is_empty() {
             // FinishReason::Stop

@@ -1,16 +1,14 @@
+use serenity::all::ChannelId;
+use std::sync::Arc;
 use xclaw::channel::{Channel, DiscordChannel, DiscordConfig, WebSocketChannel};
 use xclaw::session::SessionManager;
-use std::sync::Arc;
-use serenity::all::ChannelId;
 
 #[tokio::test]
 async fn test_session_manager() {
     let manager = SessionManager::new();
 
     // Test session creation
-    let (session, thread_id) = manager
-        .resolve_thread("test@test", "user1", "websocket", None)
-        .await;
+    let (session, thread_id) = manager.resolve_thread("test@test", "user1", "websocket", None).await;
 
     // Verify session and thread
     let sess = session.lock().await;

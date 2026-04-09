@@ -56,11 +56,7 @@ pub struct MemoryDocument {
 
 impl MemoryDocument {
     /// Create a new document with a path.
-    pub fn new(
-        user_id: impl Into<String>,
-        agent_id: Option<Uuid>,
-        path: impl Into<String>,
-    ) -> Self {
+    pub fn new(user_id: impl Into<String>, agent_id: Option<Uuid>, path: impl Into<String>) -> Self {
         let now = Utc::now();
         Self {
             id: Uuid::new_v4(),
@@ -97,10 +93,7 @@ impl MemoryDocument {
 
     /// Check if this is a well-known identity document.
     pub fn is_identity_document(&self) -> bool {
-        matches!(
-            self.path.as_str(),
-            paths::IDENTITY | paths::SOUL | paths::AGENTS | paths::USER
-        )
+        matches!(self.path.as_str(), paths::IDENTITY | paths::SOUL | paths::AGENTS | paths::USER)
     }
 }
 

@@ -31,12 +31,7 @@ pub struct ThreadKey {
 
 impl ThreadKey {
     /// Create a new thread key.
-    pub fn new(
-        binding_id: impl Into<String>,
-        user_id: impl Into<String>,
-        channel: impl Into<String>,
-        external_thread_id: Option<String>,
-    ) -> Self {
+    pub fn new(binding_id: impl Into<String>, user_id: impl Into<String>, channel: impl Into<String>, external_thread_id: Option<String>) -> Self {
         Self {
             binding_id: binding_id.into(),
             user_id: user_id.into(),
@@ -46,11 +41,7 @@ impl ThreadKey {
     }
 
     /// Create a thread key without external thread (non-threaded platforms).
-    pub fn without_thread(
-        binding_id: impl Into<String>,
-        user_id: impl Into<String>,
-        channel: impl Into<String>,
-    ) -> Self {
+    pub fn without_thread(binding_id: impl Into<String>, user_id: impl Into<String>, channel: impl Into<String>) -> Self {
         Self {
             binding_id: binding_id.into(),
             user_id: user_id.into(),
@@ -109,12 +100,7 @@ impl SessionManager {
                 }
 
                 // Rebuild thread_map
-                let key = ThreadKey::new(
-                    &session.binding_id,
-                    &thread.user_id,
-                    &thread.channel,
-                    thread.external_thread_id.clone(),
-                );
+                let key = ThreadKey::new(&session.binding_id, &thread.user_id, &thread.channel, thread.external_thread_id.clone());
                 thread_map.insert(key, thread.id);
             }
 
@@ -180,8 +166,7 @@ impl SessionManager {
         drop(sessions);
 
         // Persist new session
-        self.persist(|db| async move { db.insert_session(session_clone).await })
-            .await;
+        self.persist(|db| async move { db.insert_session(session_clone).await }).await;
 
         session
     }
@@ -195,19 +180,8 @@ impl SessionManager {
     /// - Different `external_thread_id` → different thread
     /// - Same user, different channel → different thread
     /// - `None` vs `Some(...)` are distinct keys
-    pub async fn resolve_thread(
-        &self,
-        binding_id: &str,
-        user_id: &str,
-        channel: &str,
-        external_thread_id: Option<&str>,
-    ) -> (Arc<Mutex<Session>>, Uuid) {
-        let key = ThreadKey::new(
-            binding_id,
-            user_id,
-            channel,
-            external_thread_id.map(String::from),
-        );
+    pub async fn resolve_thread(&self, binding_id: &str, user_id: &str, channel: &str, external_thread_id: Option<&str>) -> (Arc<Mutex<Session>>, Uuid) {
+        let key = ThreadKey::new(binding_id, user_id, channel, external_thread_id.map(String::from));
         let session = self.get_or_create_session(binding_id).await;
 
         // Check if we have a mapping
@@ -246,13 +220,8 @@ impl SessionManager {
         // Persist new thread + update session active_thread
         let thread_id_str = thread_id.to_string();
         let session_id_clone = session_id.clone();
-        self.persist(|db| async move { db.insert_thread(thread_clone).await })
-            .await;
-        self.persist(|db| async move {
-            db.update_session_active_thread(session_id_clone, thread_id_str)
-                .await
-        })
-        .await;
+        self.persist(|db| async move { db.insert_thread(thread_clone).await }).await;
+        self.persist(|db| async move { db.update_session_active_thread(session_id_clone, thread_id_str).await }).await;
 
         (session, thread_id)
     }
@@ -260,21 +229,8 @@ impl SessionManager {
     /// Register a hydrated thread so subsequent `resolve_thread` calls find it.
     ///
     /// Inserts into the thread_map and creates an undo manager for the thread.
-    pub async fn register_thread(
-        &self,
-        binding_id: &str,
-        user_id: &str,
-        channel: &str,
-        external_thread_id: Option<&str>,
-        thread_id: Uuid,
-        session: Arc<Mutex<Session>>,
-    ) {
-        let key = ThreadKey::new(
-            binding_id,
-            user_id,
-            channel,
-            external_thread_id.map(String::from),
-        );
+    pub async fn register_thread(&self, binding_id: &str, user_id: &str, channel: &str, external_thread_id: Option<&str>, thread_id: Uuid, session: Arc<Mutex<Session>>) {
+        let key = ThreadKey::new(binding_id, user_id, channel, external_thread_id.map(String::from));
         {
             let mut thread_map = self.thread_map.write().await;
             thread_map.insert(key, thread_id);
@@ -301,19 +257,12 @@ impl SessionManager {
                 .filter_map(|(binding_id, session)| {
                     // Try to lock; skip if contended (someone is actively using it)
                     let sess = session.try_lock().ok()?;
-                    if sess.last_active_at < cutoff {
-                        Some((binding_id.clone(), sess.id.to_string()))
-                    } else {
-                        None
-                    }
+                    if sess.last_active_at < cutoff { Some((binding_id.clone(), sess.id.to_string())) } else { None }
                 })
                 .collect()
         };
 
-        let stale_bindings: Vec<String> = stale_sessions
-            .iter()
-            .map(|(binding_id, _)| binding_id.clone())
-            .collect();
+        let stale_bindings: Vec<String> = stale_sessions.iter().map(|(binding_id, _)| binding_id.clone()).collect();
 
         if stale_bindings.is_empty() {
             return 0;
@@ -349,18 +298,13 @@ impl SessionManager {
         }
 
         if count > 0 {
-            info!(
-                "Pruned {} stale session(s) (idle > {}s)",
-                count,
-                max_idle.as_secs()
-            );
+            info!("Pruned {} stale session(s) (idle > {}s)", count, max_idle.as_secs());
         }
 
         // Persist deletions
         for (_, session_id) in &stale_sessions {
             let sid = session_id.clone();
-            self.persist(|db| async move { db.delete_session(sid).await })
-                .await;
+            self.persist(|db| async move { db.delete_session(sid).await }).await;
         }
 
         count
@@ -373,22 +317,12 @@ impl SessionManager {
     /// Start a new turn on a thread, update in-memory state, and persist.
     ///
     /// Encapsulates: `thread.start_turn(user_input)` + DB `insert_turn()` + `update_thread_state()`.
-    pub async fn thread_start_turn(
-        &self,
-        session: Arc<Mutex<Session>>,
-        thread_id: Uuid,
-        user_input: &str,
-    ) {
+    pub async fn thread_start_turn(&self, session: Arc<Mutex<Session>>, thread_id: Uuid, user_input: &str) {
         let mut sess = session.lock().await;
         if let Some(thread) = sess.threads.get_mut(&thread_id) {
             thread.start_turn(user_input);
             if let Some(turn) = thread.last_turn() {
-                self.persist_turn_started(
-                    &turn.clone(),
-                    &thread.id.to_string(),
-                    &thread.updated_at.to_rfc3339(),
-                )
-                .await;
+                self.persist_turn_started(&turn.clone(), &thread.id.to_string(), &thread.updated_at.to_rfc3339()).await;
             }
         }
     }
@@ -396,12 +330,7 @@ impl SessionManager {
     /// Complete the current turn on a thread, update in-memory state, and persist.
     ///
     /// Encapsulates: `thread.complete_turn(response)` + DB `complete_turn()` + `update_thread_state()`.
-    pub async fn thread_complete_turn(
-        &self,
-        session: Arc<Mutex<Session>>,
-        thread_id: Uuid,
-        response: Option<String>,
-    ) {
+    pub async fn thread_complete_turn(&self, session: Arc<Mutex<Session>>, thread_id: Uuid, response: Option<String>) {
         let mut sess = session.lock().await;
         if let Some(thread) = sess.threads.get_mut(&thread_id) {
             thread.complete_turn(response.clone());
@@ -422,12 +351,7 @@ impl SessionManager {
     /// Fail the current turn on a thread, update in-memory state, and persist.
     ///
     /// Encapsulates: `thread.fail_turn(error)` + DB `fail_turn()` + `update_thread_state()`.
-    pub async fn thread_fail_turn(
-        &self,
-        session: Arc<Mutex<Session>>,
-        thread_id: Uuid,
-        error: &str,
-    ) {
+    pub async fn thread_fail_turn(&self, session: Arc<Mutex<Session>>, thread_id: Uuid, error: &str) {
         let mut sess = session.lock().await;
         if let Some(thread) = sess.threads.get_mut(&thread_id) {
             thread.fail_turn(error);
@@ -450,55 +374,27 @@ impl SessionManager {
         let turn_clone = turn.clone();
         let tid = thread_id.to_string();
         let ua = updated_at.to_string();
-        self.persist(|db| async move { db.insert_turn(turn_clone).await })
-            .await;
-        self.persist(|db| async move {
-            db.update_thread_state(tid, "Processing".to_string(), ua)
-                .await
-        })
-        .await;
+        self.persist(|db| async move { db.insert_turn(turn_clone).await }).await;
+        self.persist(|db| async move { db.update_thread_state(tid, "Processing".to_string(), ua).await }).await;
     }
 
-    async fn persist_turn_completed(
-        &self,
-        turn_id: &str,
-        response: Option<String>,
-        thinking: Option<String>,
-        completed_at: &str,
-        thread_id: &str,
-        updated_at: &str,
-    ) {
+    async fn persist_turn_completed(&self, turn_id: &str, response: Option<String>, thinking: Option<String>, completed_at: &str, thread_id: &str, updated_at: &str) {
         let ti = turn_id.to_string();
         let ca = completed_at.to_string();
         let thid = thread_id.to_string();
         let ua = updated_at.to_string();
-        self.persist(|db| async move { db.complete_turn(ti, response, thinking, ca).await })
-            .await;
-        self.persist(
-            |db| async move { db.update_thread_state(thid, "Idle".to_string(), ua).await },
-        )
-        .await;
+        self.persist(|db| async move { db.complete_turn(ti, response, thinking, ca).await }).await;
+        self.persist(|db| async move { db.update_thread_state(thid, "Idle".to_string(), ua).await }).await;
     }
 
-    async fn persist_turn_failed(
-        &self,
-        turn_id: &str,
-        error: &str,
-        completed_at: &str,
-        thread_id: &str,
-        updated_at: &str,
-    ) {
+    async fn persist_turn_failed(&self, turn_id: &str, error: &str, completed_at: &str, thread_id: &str, updated_at: &str) {
         let ti = turn_id.to_string();
         let e = error.to_string();
         let ca = completed_at.to_string();
         let thid = thread_id.to_string();
         let ua = updated_at.to_string();
-        self.persist(|db| async move { db.fail_turn(ti, e, ca).await })
-            .await;
-        self.persist(
-            |db| async move { db.update_thread_state(thid, "Idle".to_string(), ua).await },
-        )
-        .await;
+        self.persist(|db| async move { db.fail_turn(ti, e, ca).await }).await;
+        self.persist(|db| async move { db.update_thread_state(thid, "Idle".to_string(), ua).await }).await;
     }
 
     /// Interrupt the current turn on a thread, update in-memory state, and persist.
@@ -522,85 +418,51 @@ impl SessionManager {
     }
 
     /// Persist an interrupted turn + thread state change to Interrupted.
-    async fn persist_turn_interrupted(
-        &self,
-        turn_id: &str,
-        completed_at: &str,
-        thread_id: &str,
-        updated_at: &str,
-    ) {
+    async fn persist_turn_interrupted(&self, turn_id: &str, completed_at: &str, thread_id: &str, updated_at: &str) {
         let ti = turn_id.to_string();
         let ca = completed_at.to_string();
         let thid = thread_id.to_string();
         let ua = updated_at.to_string();
-        self.persist(|db| async move { db.interrupt_turn(ti, ca).await })
-            .await;
-        self.persist(|db| async move {
-            db.update_thread_state(thid, "Interrupted".to_string(), ua)
-                .await
-        })
-        .await;
+        self.persist(|db| async move { db.interrupt_turn(ti, ca).await }).await;
+        self.persist(|db| async move { db.update_thread_state(thid, "Interrupted".to_string(), ua).await }).await;
     }
 
     /// Persist a new tool call.
     pub async fn persist_tool_call(&self, turn_id: &str, index: usize, call: &TurnToolCall) {
         let ti = turn_id.to_string();
         let c = call.clone();
-        self.persist(|db| async move { db.insert_tool_call(ti, index, c).await })
-            .await;
+        self.persist(|db| async move { db.insert_tool_call(ti, index, c).await }).await;
     }
 
     /// Persist a tool call result/error.
-    pub async fn persist_tool_result(
-        &self,
-        turn_id: &str,
-        index: usize,
-        result: Option<&serde_json::Value>,
-        error: Option<&str>,
-    ) {
+    pub async fn persist_tool_result(&self, turn_id: &str, index: usize, result: Option<&serde_json::Value>, error: Option<&str>) {
         let ti = turn_id.to_string();
         let r = result.map(|v| serde_json::to_string(v).unwrap_or_else(|_| "null".to_string()));
         let e = error.map(String::from);
-        self.persist(|db| async move { db.update_tool_call_result(ti, index, r, e).await })
-            .await;
+        self.persist(|db| async move { db.update_tool_call_result(ti, index, r, e).await }).await;
     }
 
     /// Persist auto-approved tools update.
     pub async fn persist_auto_approve(&self, session_id: &str, tools: &HashSet<String>) {
         let sid = session_id.to_string();
         let t = tools.clone();
-        self.persist(|db| async move { db.update_session_auto_approved_tools(sid, t).await })
-            .await;
+        self.persist(|db| async move { db.update_session_auto_approved_tools(sid, t).await }).await;
     }
 
     /// Persist thread entering AwaitingApproval state.
-    pub async fn persist_thread_awaiting_approval(
-        &self,
-        thread_id: &str,
-        pending_approvals_json: &str,
-        updated_at: &str,
-    ) {
+    pub async fn persist_thread_awaiting_approval(&self, thread_id: &str, pending_approvals_json: &str, updated_at: &str) {
         let thid = thread_id.to_string();
         let pa = pending_approvals_json.to_string();
         let ua = updated_at.to_string();
-        self.persist(|db| async move {
-            db.update_thread_pending_approvals(thid, "AwaitingApproval".to_string(), pa, ua)
-                .await
-        })
-        .await;
+        self.persist(|db| async move { db.update_thread_pending_approvals(thid, "AwaitingApproval".to_string(), pa, ua).await })
+            .await;
     }
 
     /// Persist a generic thread state change.
-    pub async fn persist_thread_state(
-        &self,
-        thread_id: &str,
-        state: ThreadState,
-        updated_at: &str,
-    ) {
+    pub async fn persist_thread_state(&self, thread_id: &str, state: ThreadState, updated_at: &str) {
         let thid = thread_id.to_string();
         let s = thread_state_to_str(state).to_string();
         let ua = updated_at.to_string();
-        self.persist(|db| async move { db.update_thread_state(thid, s, ua).await })
-            .await;
+        self.persist(|db| async move { db.update_thread_state(thid, s, ua).await }).await;
     }
 }

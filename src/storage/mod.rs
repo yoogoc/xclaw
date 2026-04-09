@@ -6,10 +6,10 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 
 use anyhow::{Context, Result};
+use diesel::SqliteConnection;
 use diesel::prelude::*;
 use diesel::r2d2::{ConnectionManager, Pool};
-use diesel::SqliteConnection;
-use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
+use diesel_migrations::{EmbeddedMigrations, MigrationHarness, embed_migrations};
 use uuid::Uuid;
 
 use crate::session::{Session, Thread, Turn, TurnToolCall};
@@ -28,8 +28,7 @@ impl Database {
     pub fn new(database_url: &str) -> Result<Self> {
         // Ensure parent directory exists
         if let Some(parent) = std::path::Path::new(database_url).parent() {
-            std::fs::create_dir_all(parent)
-                .with_context(|| format!("Failed to create directory: {}", parent.display()))?;
+            std::fs::create_dir_all(parent).with_context(|| format!("Failed to create directory: {}", parent.display()))?;
         }
 
         let manager = ConnectionManager::<SqliteConnection>::new(database_url);
@@ -41,8 +40,7 @@ impl Database {
         // Run pending migrations
         {
             let mut conn = pool.get().context("Failed to get connection for migrations")?;
-            conn.run_pending_migrations(MIGRATIONS)
-                .map_err(|e| anyhow::anyhow!("Migration failed: {}", e))?;
+            conn.run_pending_migrations(MIGRATIONS).map_err(|e| anyhow::anyhow!("Migration failed: {}", e))?;
         }
 
         info!("Database initialized: {}", database_url);
@@ -70,18 +68,11 @@ impl Database {
     pub async fn load_all_sessions(&self) -> Result<Vec<Session>> {
         self.run(|conn| {
             // Load all rows
-            let session_rows = sessions::table
-                .load::<SessionRow>(conn)
-                .context("Failed to load sessions")?;
+            let session_rows = sessions::table.load::<SessionRow>(conn).context("Failed to load sessions")?;
 
-            let thread_rows = threads::table
-                .load::<ThreadRow>(conn)
-                .context("Failed to load threads")?;
+            let thread_rows = threads::table.load::<ThreadRow>(conn).context("Failed to load threads")?;
 
-            let turn_rows = turns::table
-                .order(turns::turn_number.asc())
-                .load::<TurnRow>(conn)
-                .context("Failed to load turns")?;
+            let turn_rows = turns::table.order(turns::turn_number.asc()).load::<TurnRow>(conn).context("Failed to load turns")?;
 
             let tool_call_rows = turn_tool_calls::table
                 .order(turn_tool_calls::call_index.asc())
@@ -91,10 +82,7 @@ impl Database {
             // Group tool_calls by turn_id
             let mut tc_by_turn: HashMap<String, Vec<TurnToolCall>> = HashMap::new();
             for row in tool_call_rows {
-                tc_by_turn
-                    .entry(row.turn_id.clone())
-                    .or_default()
-                    .push(tool_call_from_row(row));
+                tc_by_turn.entry(row.turn_id.clone()).or_default().push(tool_call_from_row(row));
             }
 
             // Group turns by thread_id
@@ -103,10 +91,7 @@ impl Database {
                 let turn_id = row.id.clone();
                 let tool_calls = tc_by_turn.remove(&turn_id).unwrap_or_default();
                 let turn = turn_from_row(row, tool_calls)?;
-                turns_by_thread
-                    .entry(turn.thread_id.to_string())
-                    .or_default()
-                    .push(turn);
+                turns_by_thread.entry(turn.thread_id.to_string()).or_default().push(turn);
             }
 
             // Group threads by session_id
@@ -116,19 +101,14 @@ impl Database {
                 let session_id_str = row.session_id.clone();
                 let turns = turns_by_thread.remove(&thread_id_str).unwrap_or_default();
                 let thread = thread_from_row(row, turns)?;
-                threads_by_session
-                    .entry(session_id_str)
-                    .or_default()
-                    .insert(thread.id, thread);
+                threads_by_session.entry(session_id_str).or_default().insert(thread.id, thread);
             }
 
             // Assemble sessions
             let mut result = Vec::with_capacity(session_rows.len());
             for row in session_rows {
                 let session_id_str = row.id.clone();
-                let threads = threads_by_session
-                    .remove(&session_id_str)
-                    .unwrap_or_default();
+                let threads = threads_by_session.remove(&session_id_str).unwrap_or_default();
                 let session = session_from_row(row, threads)?;
                 result.push(session);
             }
@@ -144,36 +124,21 @@ impl Database {
             conn.transaction(|conn| {
                 // Insert session
                 let sv = SessionInsertValues::from_session(&session);
-                diesel::insert_into(sessions::table)
-                    .values(&sv.as_new_row())
-                    .on_conflict(sessions::id)
-                    .do_nothing()
-                    .execute(conn)?;
+                diesel::insert_into(sessions::table).values(&sv.as_new_row()).on_conflict(sessions::id).do_nothing().execute(conn)?;
 
                 // Insert threads + turns + tool_calls
                 for thread in session.threads.values() {
                     let tv = ThreadInsertValues::from_thread(thread);
-                    diesel::insert_into(threads::table)
-                        .values(&tv.as_new_row())
-                        .on_conflict(threads::id)
-                        .do_nothing()
-                        .execute(conn)?;
+                    diesel::insert_into(threads::table).values(&tv.as_new_row()).on_conflict(threads::id).do_nothing().execute(conn)?;
 
                     for turn in &thread.turns {
                         let uv = TurnInsertValues::from_turn(turn);
-                        diesel::insert_into(turns::table)
-                            .values(&uv.as_new_row())
-                            .on_conflict(turns::id)
-                            .do_nothing()
-                            .execute(conn)?;
+                        diesel::insert_into(turns::table).values(&uv.as_new_row()).on_conflict(turns::id).do_nothing().execute(conn)?;
 
                         let turn_id_str = turn.id.to_string();
                         for (i, tc) in turn.tool_calls.iter().enumerate() {
                             let cv = ToolCallInsertValues::from_tool_call(&turn_id_str, i, tc);
-                            diesel::insert_into(turn_tool_calls::table)
-                                .values(&cv.as_new_row())
-                                .on_conflict_do_nothing()
-                                .execute(conn)?;
+                            diesel::insert_into(turn_tool_calls::table).values(&cv.as_new_row()).on_conflict_do_nothing().execute(conn)?;
                         }
                     }
                 }
@@ -189,10 +154,7 @@ impl Database {
     pub async fn insert_session(&self, session: Session) -> Result<()> {
         self.run(move |conn| {
             let sv = SessionInsertValues::from_session(&session);
-            diesel::insert_into(sessions::table)
-                .values(&sv.as_new_row())
-                .execute(conn)
-                .context("Failed to insert session")?;
+            diesel::insert_into(sessions::table).values(&sv.as_new_row()).execute(conn).context("Failed to insert session")?;
             Ok(())
         })
         .await
@@ -200,19 +162,13 @@ impl Database {
 
     pub async fn delete_session(&self, session_id: String) -> Result<()> {
         self.run(move |conn| {
-            diesel::delete(sessions::table.filter(sessions::id.eq(&session_id)))
-                .execute(conn)
-                .context("Failed to delete session")?;
+            diesel::delete(sessions::table.filter(sessions::id.eq(&session_id))).execute(conn).context("Failed to delete session")?;
             Ok(())
         })
         .await
     }
 
-    pub async fn update_session_active_thread(
-        &self,
-        session_id: String,
-        thread_id: String,
-    ) -> Result<()> {
+    pub async fn update_session_active_thread(&self, session_id: String, thread_id: String) -> Result<()> {
         self.run(move |conn| {
             diesel::update(sessions::table.filter(sessions::id.eq(&session_id)))
                 .set(sessions::active_thread_id.eq(Some(&thread_id)))
@@ -223,14 +179,9 @@ impl Database {
         .await
     }
 
-    pub async fn update_session_auto_approved_tools(
-        &self,
-        session_id: String,
-        tools: HashSet<String>,
-    ) -> Result<()> {
+    pub async fn update_session_auto_approved_tools(&self, session_id: String, tools: HashSet<String>) -> Result<()> {
         self.run(move |conn| {
-            let tools_json =
-                serde_json::to_string(&tools).unwrap_or_else(|_| "[]".to_string());
+            let tools_json = serde_json::to_string(&tools).unwrap_or_else(|_| "[]".to_string());
             diesel::update(sessions::table.filter(sessions::id.eq(&session_id)))
                 .set(sessions::auto_approved_tools.eq(&tools_json))
                 .execute(conn)
@@ -245,27 +196,16 @@ impl Database {
     pub async fn insert_thread(&self, thread: Thread) -> Result<()> {
         self.run(move |conn| {
             let tv = ThreadInsertValues::from_thread(&thread);
-            diesel::insert_into(threads::table)
-                .values(&tv.as_new_row())
-                .execute(conn)
-                .context("Failed to insert thread")?;
+            diesel::insert_into(threads::table).values(&tv.as_new_row()).execute(conn).context("Failed to insert thread")?;
             Ok(())
         })
         .await
     }
 
-    pub async fn update_thread_state(
-        &self,
-        thread_id: String,
-        state: String,
-        updated_at: String,
-    ) -> Result<()> {
+    pub async fn update_thread_state(&self, thread_id: String, state: String, updated_at: String) -> Result<()> {
         self.run(move |conn| {
             diesel::update(threads::table.filter(threads::id.eq(&thread_id)))
-                .set((
-                    threads::state.eq(&state),
-                    threads::updated_at.eq(&updated_at),
-                ))
+                .set((threads::state.eq(&state), threads::updated_at.eq(&updated_at)))
                 .execute(conn)
                 .context("Failed to update thread state")?;
             Ok(())
@@ -273,20 +213,10 @@ impl Database {
         .await
     }
 
-    pub async fn update_thread_pending_approvals(
-        &self,
-        thread_id: String,
-        state: String,
-        pending_approvals: String,
-        updated_at: String,
-    ) -> Result<()> {
+    pub async fn update_thread_pending_approvals(&self, thread_id: String, state: String, pending_approvals: String, updated_at: String) -> Result<()> {
         self.run(move |conn| {
             diesel::update(threads::table.filter(threads::id.eq(&thread_id)))
-                .set((
-                    threads::state.eq(&state),
-                    threads::pending_approvals.eq(&pending_approvals),
-                    threads::updated_at.eq(&updated_at),
-                ))
+                .set((threads::state.eq(&state), threads::pending_approvals.eq(&pending_approvals), threads::updated_at.eq(&updated_at)))
                 .execute(conn)
                 .context("Failed to update thread pending_approvals")?;
             Ok(())
@@ -299,22 +229,13 @@ impl Database {
     pub async fn insert_turn(&self, turn: Turn) -> Result<()> {
         self.run(move |conn| {
             let uv = TurnInsertValues::from_turn(&turn);
-            diesel::insert_into(turns::table)
-                .values(&uv.as_new_row())
-                .execute(conn)
-                .context("Failed to insert turn")?;
+            diesel::insert_into(turns::table).values(&uv.as_new_row()).execute(conn).context("Failed to insert turn")?;
             Ok(())
         })
         .await
     }
 
-    pub async fn complete_turn(
-        &self,
-        turn_id: String,
-        response: Option<String>,
-        thinking: Option<String>,
-        completed_at: String,
-    ) -> Result<()> {
+    pub async fn complete_turn(&self, turn_id: String, response: Option<String>, thinking: Option<String>, completed_at: String) -> Result<()> {
         self.run(move |conn| {
             diesel::update(turns::table.filter(turns::id.eq(&turn_id)))
                 .set((
@@ -330,19 +251,10 @@ impl Database {
         .await
     }
 
-    pub async fn fail_turn(
-        &self,
-        turn_id: String,
-        error: String,
-        completed_at: String,
-    ) -> Result<()> {
+    pub async fn fail_turn(&self, turn_id: String, error: String, completed_at: String) -> Result<()> {
         self.run(move |conn| {
             diesel::update(turns::table.filter(turns::id.eq(&turn_id)))
-                .set((
-                    turns::state.eq("Failed"),
-                    turns::error.eq(Some(&error)),
-                    turns::completed_at.eq(Some(&completed_at)),
-                ))
+                .set((turns::state.eq("Failed"), turns::error.eq(Some(&error)), turns::completed_at.eq(Some(&completed_at))))
                 .execute(conn)
                 .context("Failed to fail turn")?;
             Ok(())
@@ -350,17 +262,10 @@ impl Database {
         .await
     }
 
-    pub async fn interrupt_turn(
-        &self,
-        turn_id: String,
-        completed_at: String,
-    ) -> Result<()> {
+    pub async fn interrupt_turn(&self, turn_id: String, completed_at: String) -> Result<()> {
         self.run(move |conn| {
             diesel::update(turns::table.filter(turns::id.eq(&turn_id)))
-                .set((
-                    turns::state.eq("Interrupted"),
-                    turns::completed_at.eq(Some(&completed_at)),
-                ))
+                .set((turns::state.eq("Interrupted"), turns::completed_at.eq(Some(&completed_at))))
                 .execute(conn)
                 .context("Failed to interrupt turn")?;
             Ok(())
@@ -370,12 +275,7 @@ impl Database {
 
     // ── ToolCall ──
 
-    pub async fn insert_tool_call(
-        &self,
-        turn_id: String,
-        index: usize,
-        call: TurnToolCall,
-    ) -> Result<()> {
+    pub async fn insert_tool_call(&self, turn_id: String, index: usize, call: TurnToolCall) -> Result<()> {
         self.run(move |conn| {
             let cv = ToolCallInsertValues::from_tool_call(&turn_id, index, &call);
             diesel::insert_into(turn_tool_calls::table)
@@ -387,27 +287,12 @@ impl Database {
         .await
     }
 
-    pub async fn update_tool_call_result(
-        &self,
-        turn_id: String,
-        index: usize,
-        result: Option<String>,
-        error: Option<String>,
-    ) -> Result<()> {
+    pub async fn update_tool_call_result(&self, turn_id: String, index: usize, result: Option<String>, error: Option<String>) -> Result<()> {
         self.run(move |conn| {
-            diesel::update(
-                turn_tool_calls::table.filter(
-                    turn_tool_calls::turn_id
-                        .eq(&turn_id)
-                        .and(turn_tool_calls::call_index.eq(index as i32)),
-                ),
-            )
-            .set((
-                turn_tool_calls::result.eq(result.as_deref()),
-                turn_tool_calls::error.eq(error.as_deref()),
-            ))
-            .execute(conn)
-            .context("Failed to update tool call result")?;
+            diesel::update(turn_tool_calls::table.filter(turn_tool_calls::turn_id.eq(&turn_id).and(turn_tool_calls::call_index.eq(index as i32))))
+                .set((turn_tool_calls::result.eq(result.as_deref()), turn_tool_calls::error.eq(error.as_deref())))
+                .execute(conn)
+                .context("Failed to update tool call result")?;
             Ok(())
         })
         .await

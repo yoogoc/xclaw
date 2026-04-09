@@ -67,12 +67,7 @@ pub struct Turn {
 
 impl Turn {
     /// Create a new turn.
-    pub fn new(
-        session_id: Uuid,
-        thread_id: Uuid,
-        turn_number: usize,
-        user_input: impl Into<String>,
-    ) -> Self {
+    pub fn new(session_id: Uuid, thread_id: Uuid, turn_number: usize, user_input: impl Into<String>) -> Self {
         Self {
             id: Uuid::new_v4(),
             thread_id,

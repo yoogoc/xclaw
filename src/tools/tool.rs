@@ -1,7 +1,7 @@
-use serde::{Deserialize, Serialize};
-use std::time::Duration;
 use crate::errors::tool::ToolError;
 use crate::tools::ToolOutput;
+use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
 /// How much approval a specific tool invocation requires.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -3,8 +3,8 @@
 //! This module provides secure path validation to prevent directory traversal
 //! attacks and ensure paths stay within allowed sandboxes.
 
-use std::path::{Path, PathBuf};
 use crate::errors::tool::ToolError;
+use std::path::{Path, PathBuf};
 
 /// Normalize a path by resolving `.` and `..` components lexically (no filesystem access).
 ///
@@ -16,10 +16,7 @@ pub fn normalize_lexical(path: &Path) -> PathBuf {
         match component {
             std::path::Component::ParentDir => {
                 // Only pop if there's a normal component to pop (don't escape root/prefix)
-                if components
-                    .last()
-                    .is_some_and(|c| matches!(c, std::path::Component::Normal(_)))
-                {
+                if components.last().is_some_and(|c| matches!(c, std::path::Component::Normal(_))) {
                     components.pop();
                 }
             }
@@ -49,35 +46,25 @@ pub fn validate_path(path_str: &str, base_dir: Option<&Path>) -> Result<PathBuf,
     // Note: We don't block `..` here because validate_path handles it by
     // normalizing lexically and checking sandbox containment
     if !is_path_safe_minimal(path_str) {
-        return Err(ToolError::NotAuthorized(format!(
-            "Path contains forbidden characters or sequences: {}",
-            path_str
-        )));
+        return Err(ToolError::NotAuthorized(format!("Path contains forbidden characters or sequences: {}", path_str)));
     }
 
     let path = PathBuf::from(path_str);
 
     // Resolve to absolute path
     let resolved = if path.is_absolute() {
-        path.canonicalize()
-            .unwrap_or_else(|_| normalize_lexical(&path))
+        path.canonicalize().unwrap_or_else(|_| normalize_lexical(&path))
     } else if let Some(base) = base_dir {
         let joined = base.join(&path);
-        joined
-            .canonicalize()
-            .unwrap_or_else(|_| normalize_lexical(&joined))
+        joined.canonicalize().unwrap_or_else(|_| normalize_lexical(&joined))
     } else {
-        let joined = std::env::current_dir()
-            .unwrap_or_else(|_| PathBuf::from("."))
-            .join(&path);
+        let joined = std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")).join(&path);
         normalize_lexical(&joined)
     };
 
     // If base_dir is set, ensure the resolved path is within it
     if let Some(base) = base_dir {
-        let base_canonical = base
-            .canonicalize()
-            .unwrap_or_else(|_| normalize_lexical(base));
+        let base_canonical = base.canonicalize().unwrap_or_else(|_| normalize_lexical(base));
 
         // For existing paths, canonicalize to resolve symlinks.
         // For non-existent paths, the lexical normalization above already removed
@@ -92,9 +79,7 @@ pub fn validate_path(path_str: &str, base_dir: Option<&Path>) -> Result<PathBuf,
             let mut tail_parts: Vec<&std::ffi::OsStr> = Vec::new();
             loop {
                 if ancestor.exists() {
-                    let canonical_ancestor = ancestor
-                        .canonicalize()
-                        .unwrap_or_else(|_| ancestor.to_path_buf());
+                    let canonical_ancestor = ancestor.canonicalize().unwrap_or_else(|_| ancestor.to_path_buf());
                     let mut result = canonical_ancestor;
                     for part in tail_parts.into_iter().rev() {
                         result = result.join(part);
@@ -112,10 +97,7 @@ pub fn validate_path(path_str: &str, base_dir: Option<&Path>) -> Result<PathBuf,
         };
 
         if !check_path.starts_with(&base_canonical) {
-            return Err(ToolError::NotAuthorized(format!(
-                "Path escapes sandbox: {}",
-                path_str
-            )));
+            return Err(ToolError::NotAuthorized(format!("Path escapes sandbox: {}", path_str)));
         }
     }
 

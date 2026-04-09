@@ -1,9 +1,9 @@
-use crate::tools::{require_str, ApprovalRequirement, Tool, ToolDomain, ToolOutput};
-use std::path::PathBuf;
-use tokio::fs;
 use crate::errors::tool::ToolError;
+use crate::tools::{ApprovalRequirement, Tool, ToolDomain, ToolOutput, require_str};
 use crate::utils::path::validate_path;
 use crate::workspace::paths as ws_paths;
+use std::path::PathBuf;
+use tokio::fs;
 
 /// Well-known workspace filenames that must go through memory_write, not write_file.
 ///
@@ -97,15 +97,13 @@ impl Tool for FileWrite {
 
         // Create parent directories
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).await.map_err(|e| {
-                ToolError::ExecutionFailed(format!("Failed to create directories: {}", e))
-            })?;
+            fs::create_dir_all(parent)
+                .await
+                .map_err(|e| ToolError::ExecutionFailed(format!("Failed to create directories: {}", e)))?;
         }
 
         // Write file
-        fs::write(&path, content)
-            .await
-            .map_err(|e| ToolError::ExecutionFailed(format!("Failed to write file: {}", e)))?;
+        fs::write(&path, content).await.map_err(|e| ToolError::ExecutionFailed(format!("Failed to write file: {}", e)))?;
 
         let result = serde_json::json!({
             "path": path.display().to_string(),
@@ -123,18 +121,12 @@ impl Tool for FileWrite {
     fn domain(&self) -> ToolDomain {
         ToolDomain::Container
     }
-
 }
 
 /// Check whether `path` resolves to a workspace file that should be written
 /// through `memory_write` instead of `write_file`.
 fn is_workspace_path(path: &str) -> bool {
-    let filename = std::path::Path::new(path)
-        .file_name()
-        .and_then(|f| f.to_str())
-        .unwrap_or(path);
+    let filename = std::path::Path::new(path).file_name().and_then(|f| f.to_str()).unwrap_or(path);
 
-    WORKSPACE_FILES.contains(&filename)
-        || path.starts_with("daily/")
-        || path.starts_with("context/")
+    WORKSPACE_FILES.contains(&filename) || path.starts_with("daily/") || path.starts_with("context/")
 }

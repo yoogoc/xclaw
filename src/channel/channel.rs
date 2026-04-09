@@ -3,7 +3,7 @@ use anyhow::Result;
 
 pub enum ReplySize {
     Limit(usize),
-    Unlimit
+    Unlimit,
 }
 
 #[async_trait]

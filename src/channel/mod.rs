@@ -69,22 +69,12 @@ impl ChannelManager {
         Ok(None)
     }
 
-    pub async fn send_chunk(
-        &self,
-        thread_id: &str,
-        draft_message_id: Option<String>,
-        chunk: &str,
-    ) -> anyhow::Result<()> {
+    pub async fn send_chunk(&self, thread_id: &str, draft_message_id: Option<String>, chunk: &str) -> anyhow::Result<()> {
         let mut buffer = self.draft_buffer.write().await;
-        buffer
-            .entry(thread_id.to_string())
-            .or_insert_with(String::new)
-            .push_str(chunk);
+        buffer.entry(thread_id.to_string()).or_insert_with(String::new).push_str(chunk);
         if self.channel.supports_draft_updates() {
             let mut buffer = self.draft_buffer.write().await;
-            let content = buffer
-                .entry(thread_id.to_string())
-                .or_insert_with(String::new);
+            let content = buffer.entry(thread_id.to_string()).or_insert_with(String::new);
             content.push_str(chunk);
 
             if let Some(message_id) = draft_message_id {
@@ -94,11 +84,7 @@ impl ChannelManager {
         Ok(())
     }
 
-    pub async fn send_final(
-        &self,
-        thread_id: &str,
-        draft_message_id: Option<String>,
-    ) -> anyhow::Result<()> {
+    pub async fn send_final(&self, thread_id: &str, draft_message_id: Option<String>) -> anyhow::Result<()> {
         let result = {
             let mut content = {
                 let mut buffer = self.draft_buffer.write().await;

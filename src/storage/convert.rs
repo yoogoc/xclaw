@@ -4,9 +4,7 @@ use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-use crate::session::{
-    PendingApproval, Session, Thread, ThreadState, Turn, TurnState, TurnToolCall,
-};
+use crate::session::{PendingApproval, Session, Thread, ThreadState, Turn, TurnState, TurnToolCall};
 
 use super::models::*;
 
@@ -61,9 +59,7 @@ fn dt_to_str(dt: &DateTime<Utc>) -> String {
 }
 
 fn str_to_dt(s: &str) -> Result<DateTime<Utc>> {
-    DateTime::parse_from_rfc3339(s)
-        .map(|dt| dt.with_timezone(&Utc))
-        .with_context(|| format!("Invalid datetime: {}", s))
+    DateTime::parse_from_rfc3339(s).map(|dt| dt.with_timezone(&Utc)).with_context(|| format!("Invalid datetime: {}", s))
 }
 
 fn opt_dt_to_str(dt: &Option<DateTime<Utc>>) -> Option<String> {
@@ -95,10 +91,8 @@ impl SessionInsertValues {
             id: session.id.to_string(),
             binding_id: session.binding_id.clone(),
             active_thread_id: session.active_thread.map(|id| id.to_string()),
-            auto_approved_tools: serde_json::to_string(&session.auto_approved_tools)
-                .unwrap_or_else(|_| "[]".to_string()),
-            metadata: serde_json::to_string(&session.metadata)
-                .unwrap_or_else(|_| "null".to_string()),
+            auto_approved_tools: serde_json::to_string(&session.auto_approved_tools).unwrap_or_else(|_| "[]".to_string()),
+            metadata: serde_json::to_string(&session.metadata).unwrap_or_else(|_| "null".to_string()),
             created_at: dt_to_str(&session.created_at),
             last_active_at: dt_to_str(&session.last_active_at),
         }
@@ -117,24 +111,16 @@ impl SessionInsertValues {
     }
 }
 
-pub fn session_from_row(
-    row: SessionRow,
-    threads: HashMap<Uuid, Thread>,
-) -> Result<Session> {
+pub fn session_from_row(row: SessionRow, threads: HashMap<Uuid, Thread>) -> Result<Session> {
     Ok(Session {
         id: Uuid::parse_str(&row.id)?,
         binding_id: row.binding_id,
-        active_thread: row
-            .active_thread_id
-            .as_deref()
-            .map(Uuid::parse_str)
-            .transpose()?,
+        active_thread: row.active_thread_id.as_deref().map(Uuid::parse_str).transpose()?,
         threads,
         created_at: str_to_dt(&row.created_at)?,
         last_active_at: str_to_dt(&row.last_active_at)?,
         metadata: serde_json::from_str(&row.metadata).unwrap_or(serde_json::Value::Null),
-        auto_approved_tools: serde_json::from_str(&row.auto_approved_tools)
-            .unwrap_or_default(),
+        auto_approved_tools: serde_json::from_str(&row.auto_approved_tools).unwrap_or_default(),
     })
 }
 
@@ -162,10 +148,8 @@ impl ThreadInsertValues {
             channel: thread.channel.clone(),
             external_thread_id: thread.external_thread_id.clone(),
             state: thread_state_to_str(thread.state).to_string(),
-            metadata: serde_json::to_string(&thread.metadata)
-                .unwrap_or_else(|_| "null".to_string()),
-            pending_approvals: serde_json::to_string(&thread.pending_approvals)
-                .unwrap_or_else(|_| "[]".to_string()),
+            metadata: serde_json::to_string(&thread.metadata).unwrap_or_else(|_| "null".to_string()),
+            pending_approvals: serde_json::to_string(&thread.pending_approvals).unwrap_or_else(|_| "[]".to_string()),
             created_at: dt_to_str(&thread.created_at),
             updated_at: dt_to_str(&thread.updated_at),
         }
@@ -188,8 +172,7 @@ impl ThreadInsertValues {
 }
 
 pub fn thread_from_row(row: ThreadRow, turns: Vec<Turn>) -> Result<Thread> {
-    let pending_approvals: Vec<PendingApproval> =
-        serde_json::from_str(&row.pending_approvals).unwrap_or_default();
+    let pending_approvals: Vec<PendingApproval> = serde_json::from_str(&row.pending_approvals).unwrap_or_default();
 
     Ok(Thread {
         id: Uuid::parse_str(&row.id)?,
@@ -299,12 +282,8 @@ impl ToolCallInsertValues {
             turn_id: turn_id.to_string(),
             call_index: index as i32,
             name: tc.name.clone(),
-            parameters: serde_json::to_string(&tc.parameters)
-                .unwrap_or_else(|_| "{}".to_string()),
-            result: tc
-                .result
-                .as_ref()
-                .map(|v| serde_json::to_string(v).unwrap_or_else(|_| "null".to_string())),
+            parameters: serde_json::to_string(&tc.parameters).unwrap_or_else(|_| "{}".to_string()),
+            result: tc.result.as_ref().map(|v| serde_json::to_string(v).unwrap_or_else(|_| "null".to_string())),
             error: tc.error.clone(),
         }
     }
@@ -324,13 +303,8 @@ impl ToolCallInsertValues {
 pub fn tool_call_from_row(row: ToolCallRow) -> TurnToolCall {
     TurnToolCall {
         name: row.name,
-        parameters: row
-            .parameters
-            .parse::<serde_json::Value>()
-            .unwrap_or(serde_json::Value::Object(Default::default())),
-        result: row
-            .result
-            .and_then(|s| serde_json::from_str(&s).ok()),
+        parameters: row.parameters.parse::<serde_json::Value>().unwrap_or(serde_json::Value::Object(Default::default())),
+        result: row.result.and_then(|s| serde_json::from_str(&s).ok()),
         error: row.error,
     }
 }

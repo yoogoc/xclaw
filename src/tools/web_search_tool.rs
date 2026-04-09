@@ -47,18 +47,12 @@ impl WebSearch {
             StatusCode::FORBIDDEN | StatusCode::TOO_MANY_REQUESTS => {
                 " DuckDuckGo may be blocking this network. Try [web_search].provider = \"brave\" with [web_search].brave_api_key, or set provider = \"firecrawl\"."
             }
-            StatusCode::SERVICE_UNAVAILABLE
-            | StatusCode::BAD_GATEWAY
-            | StatusCode::GATEWAY_TIMEOUT => {
-                " DuckDuckGo may be temporarily unavailable. Retry later or switch providers."
-            }
+            StatusCode::SERVICE_UNAVAILABLE | StatusCode::BAD_GATEWAY | StatusCode::GATEWAY_TIMEOUT => " DuckDuckGo may be temporarily unavailable. Retry later or switch providers.",
             _ => "",
         }
     }
 
-    pub fn new(
-        provider: String,
-    ) -> Self {
+    pub fn new(provider: String) -> Self {
         Self::new_with_options(
             provider,
             None,
@@ -147,15 +141,8 @@ impl WebSearch {
     }
 
     fn parse_api_keys(raw: Option<&str>) -> Vec<String> {
-        raw.map(|value| {
-            value
-                .split(',')
-                .map(str::trim)
-                .filter(|s| !s.is_empty())
-                .map(ToOwned::to_owned)
-                .collect()
-        })
-        .unwrap_or_default()
+        raw.map(|value| value.split(',').map(str::trim).filter(|s| !s.is_empty()).map(ToOwned::to_owned).collect())
+            .unwrap_or_default()
     }
 
     fn get_next_key_from(keys: &[String], index: &AtomicUsize) -> Option<String> {
@@ -171,23 +158,19 @@ impl WebSearch {
     }
 
     fn get_next_brave_api_key(&self) -> Option<String> {
-        Self::get_next_key_from(&self.brave_api_keys, &self.brave_key_index)
-            .or_else(|| self.get_next_api_key())
+        Self::get_next_key_from(&self.brave_api_keys, &self.brave_key_index).or_else(|| self.get_next_api_key())
     }
 
     fn get_next_perplexity_api_key(&self) -> Option<String> {
-        Self::get_next_key_from(&self.perplexity_api_keys, &self.perplexity_key_index)
-            .or_else(|| self.get_next_api_key())
+        Self::get_next_key_from(&self.perplexity_api_keys, &self.perplexity_key_index).or_else(|| self.get_next_api_key())
     }
 
     fn get_next_exa_api_key(&self) -> Option<String> {
-        Self::get_next_key_from(&self.exa_api_keys, &self.exa_key_index)
-            .or_else(|| self.get_next_api_key())
+        Self::get_next_key_from(&self.exa_api_keys, &self.exa_key_index).or_else(|| self.get_next_api_key())
     }
 
     fn get_next_jina_api_key(&self) -> Option<String> {
-        Self::get_next_key_from(&self.jina_api_keys, &self.jina_key_index)
-            .or_else(|| self.get_next_api_key())
+        Self::get_next_key_from(&self.jina_api_keys, &self.jina_key_index).or_else(|| self.get_next_api_key())
     }
 
     fn normalize_provider(raw: &str) -> Option<&'static str> {
@@ -207,16 +190,9 @@ impl WebSearch {
         let mut chain: Vec<&'static str> = Vec::new();
         let mut seen: HashSet<&'static str> = HashSet::new();
 
-        for raw in std::iter::once(self.provider.as_str()).chain(
-            self.fallback_providers
-                .iter()
-                .map(std::string::String::as_str),
-        ) {
-            let normalized = Self::normalize_provider(raw).ok_or_else(|| {
-                ToolError::ExecutionFailed(
-                    "Unknown search provider '{raw}'. Supported: duckduckgo, brave, firecrawl, tavily, perplexity, exa, jina".to_string(),
-                )
-            })?;
+        for raw in std::iter::once(self.provider.as_str()).chain(self.fallback_providers.iter().map(std::string::String::as_str)) {
+            let normalized = Self::normalize_provider(raw)
+                .ok_or_else(|| ToolError::ExecutionFailed("Unknown search provider '{raw}'. Supported: duckduckgo, brave, firecrawl, tavily, perplexity, exa, jina".to_string()))?;
             if seen.insert(normalized) {
                 chain.push(normalized);
             }
@@ -234,19 +210,15 @@ impl WebSearch {
             .user_agent(self.user_agent.as_str())
             .build()?;
 
-        let response = client.get(&search_url).send().await.map_err(|e| {
-            anyhow::anyhow!(
-                "DuckDuckGo search request failed: {e}. Check outbound network/proxy settings, or switch [web_search].provider to \"brave\"/\"firecrawl\"."
-            )
-        })?;
+        let response = client
+            .get(&search_url)
+            .send()
+            .await
+            .map_err(|e| anyhow::anyhow!("DuckDuckGo search request failed: {e}. Check outbound network/proxy settings, or switch [web_search].provider to \"brave\"/\"firecrawl\"."))?;
 
         if !response.status().is_success() {
             let status = response.status();
-            anyhow::bail!(
-                "DuckDuckGo search failed with status: {}.{}",
-                status,
-                Self::duckduckgo_status_hint(status)
-            );
+            anyhow::bail!("DuckDuckGo search failed with status: {}.{}", status, Self::duckduckgo_status_hint(status));
         }
 
         let html = response.text().await?;
@@ -255,22 +227,14 @@ impl WebSearch {
 
     fn parse_duckduckgo_results(&self, html: &str, query: &str) -> anyhow::Result<String> {
         // Extract result links: <a class="result__a" href="...">Title</a>
-        let link_regex = Regex::new(
-            r#"<a[^>]*class="[^"]*result__a[^"]*"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)</a>"#,
-        )?;
+        let link_regex = Regex::new(r#"<a[^>]*class="[^"]*result__a[^"]*"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)</a>"#)?;
 
         // Extract snippets: <a class="result__snippet">...</a>
         let snippet_regex = Regex::new(r#"<a class="result__snippet[^"]*"[^>]*>([\s\S]*?)</a>"#)?;
 
-        let link_matches: Vec<_> = link_regex
-            .captures_iter(html)
-            .take(self.max_results + 2)
-            .collect();
+        let link_matches: Vec<_> = link_regex.captures_iter(html).take(self.max_results + 2).collect();
 
-        let snippet_matches: Vec<_> = snippet_regex
-            .captures_iter(html)
-            .take(self.max_results + 2)
-            .collect();
+        let snippet_matches: Vec<_> = snippet_regex.captures_iter(html).take(self.max_results + 2).collect();
 
         if link_matches.is_empty() {
             return Ok(format!("No results found for: {}", query));
@@ -302,27 +266,17 @@ impl WebSearch {
     }
 
     async fn search_brave(&self, query: &str) -> anyhow::Result<String> {
-        let auth_token = self
-            .get_next_brave_api_key()
-            .ok_or_else(|| anyhow::anyhow!("Brave API key not configured"))?;
+        let auth_token = self.get_next_brave_api_key().ok_or_else(|| anyhow::anyhow!("Brave API key not configured"))?;
 
         let encoded_query = urlencoding::encode(query);
-        let search_url = format!(
-            "https://api.search.brave.com/res/v1/web/search?q={}&count={}",
-            encoded_query, self.max_results
-        );
+        let search_url = format!("https://api.search.brave.com/res/v1/web/search?q={}&count={}", encoded_query, self.max_results);
 
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(self.timeout_secs))
             .user_agent(self.user_agent.as_str())
             .build()?;
 
-        let response = client
-            .get(&search_url)
-            .header("Accept", "application/json")
-            .header("X-Subscription-Token", auth_token)
-            .send()
-            .await?;
+        let response = client.get(&search_url).header("Accept", "application/json").header("X-Subscription-Token", auth_token).send().await?;
 
         if !response.status().is_success() {
             anyhow::bail!("Brave search failed with status: {}", response.status());
@@ -346,15 +300,9 @@ impl WebSearch {
         let mut lines = vec![format!("Search results for: {} (via Brave)", query)];
 
         for (i, result) in results.iter().take(self.max_results).enumerate() {
-            let title = result
-                .get("title")
-                .and_then(|t| t.as_str())
-                .unwrap_or("No title");
+            let title = result.get("title").and_then(|t| t.as_str()).unwrap_or("No title");
             let url = result.get("url").and_then(|u| u.as_str()).unwrap_or("");
-            let description = result
-                .get("description")
-                .and_then(|d| d.as_str())
-                .unwrap_or("");
+            let description = result.get("description").and_then(|d| d.as_str()).unwrap_or("");
 
             lines.push(format!("{}. {}", i + 1, title));
             lines.push(format!("   {}", url));
@@ -371,18 +319,11 @@ impl WebSearch {
     }
 
     async fn search_tavily(&self, query: &str) -> anyhow::Result<String> {
-        let api_key = self.get_next_api_key().ok_or_else(|| {
-            anyhow::anyhow!(
-                "web_search provider 'tavily' requires [web_search].api_key in config.toml"
-            )
-        })?;
+        let api_key = self
+            .get_next_api_key()
+            .ok_or_else(|| anyhow::anyhow!("web_search provider 'tavily' requires [web_search].api_key in config.toml"))?;
 
-        let api_url = self
-            .api_url
-            .as_deref()
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-            .unwrap_or("https://api.tavily.com");
+        let api_url = self.api_url.as_deref().map(str::trim).filter(|s| !s.is_empty()).unwrap_or("https://api.tavily.com");
         let endpoint = format!("{}/search", api_url.trim_end_matches('/'));
 
         let client = reqwest::Client::builder()
@@ -406,15 +347,10 @@ impl WebSearch {
         let status = response.status();
         let body = response.text().await?;
         if !status.is_success() {
-            anyhow::bail!(
-                "Tavily search failed with status {}: {}",
-                status.as_u16(),
-                body
-            );
+            anyhow::bail!("Tavily search failed with status {}: {}", status.as_u16(), body);
         }
 
-        let parsed: serde_json::Value = serde_json::from_str(&body)
-            .map_err(|e| anyhow::anyhow!("Invalid Tavily response JSON: {e}"))?;
+        let parsed: serde_json::Value = serde_json::from_str(&body).map_err(|e| anyhow::anyhow!("Invalid Tavily response JSON: {e}"))?;
         if let Some(error) = parsed.get("error").and_then(serde_json::Value::as_str) {
             anyhow::bail!("Tavily API error: {error}");
         }
@@ -429,19 +365,9 @@ impl WebSearch {
 
         let mut lines = vec![format!("Search results for: {} (via Tavily)", query)];
         for (i, result) in results.iter().take(self.max_results).enumerate() {
-            let title = result
-                .get("title")
-                .and_then(serde_json::Value::as_str)
-                .unwrap_or("No title");
-            let url = result
-                .get("url")
-                .and_then(serde_json::Value::as_str)
-                .unwrap_or("");
-            let content = result
-                .get("content")
-                .and_then(serde_json::Value::as_str)
-                .unwrap_or("")
-                .trim();
+            let title = result.get("title").and_then(serde_json::Value::as_str).unwrap_or("No title");
+            let url = result.get("url").and_then(serde_json::Value::as_str).unwrap_or("");
+            let content = result.get("content").and_then(serde_json::Value::as_str).unwrap_or("").trim();
 
             lines.push(format!("{}. {}", i + 1, title));
             lines.push(format!("   {}", url));
@@ -454,18 +380,11 @@ impl WebSearch {
     }
 
     async fn search_perplexity(&self, query: &str) -> anyhow::Result<String> {
-        let api_key = self.get_next_perplexity_api_key().ok_or_else(|| {
-            anyhow::anyhow!(
-                "web_search provider 'perplexity' requires [web_search].perplexity_api_key or [web_search].api_key in config.toml"
-            )
-        })?;
+        let api_key = self
+            .get_next_perplexity_api_key()
+            .ok_or_else(|| anyhow::anyhow!("web_search provider 'perplexity' requires [web_search].perplexity_api_key or [web_search].api_key in config.toml"))?;
 
-        let api_url = self
-            .api_url
-            .as_deref()
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-            .unwrap_or("https://api.perplexity.ai");
+        let api_url = self.api_url.as_deref().map(str::trim).filter(|s| !s.is_empty()).unwrap_or("https://api.perplexity.ai");
         let endpoint = format!("{}/search", api_url.trim_end_matches('/'));
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(self.timeout_secs))
@@ -488,29 +407,16 @@ impl WebSearch {
         if !self.language_filter.is_empty() {
             body["search_language_filter"] = json!(self.language_filter);
         }
-        if let Some(country) = self
-            .country
-            .as_deref()
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-        {
+        if let Some(country) = self.country.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
             body["country"] = json!(country);
         }
-        if let Some(recency) = self
-            .recency_filter
-            .as_deref()
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-        {
+        if let Some(recency) = self.recency_filter.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
             body["search_recency_filter"] = json!(recency);
         }
 
         let response = client
             .post(&endpoint)
-            .header(
-                reqwest::header::AUTHORIZATION,
-                format!("Bearer {}", api_key),
-            )
+            .header(reqwest::header::AUTHORIZATION, format!("Bearer {}", api_key))
             .json(&body)
             .send()
             .await
@@ -518,15 +424,10 @@ impl WebSearch {
         let status = response.status();
         let raw = response.text().await?;
         if !status.is_success() {
-            anyhow::bail!(
-                "Perplexity search failed with status {}: {}",
-                status.as_u16(),
-                raw
-            );
+            anyhow::bail!("Perplexity search failed with status {}: {}", status.as_u16(), raw);
         }
 
-        let parsed: serde_json::Value = serde_json::from_str(&raw)
-            .map_err(|e| anyhow::anyhow!("Invalid Perplexity response JSON: {e}"))?;
+        let parsed: serde_json::Value = serde_json::from_str(&raw).map_err(|e| anyhow::anyhow!("Invalid Perplexity response JSON: {e}"))?;
 
         let results = parsed
             .get("results")
@@ -539,19 +440,9 @@ impl WebSearch {
 
         let mut lines = vec![format!("Search results for: {} (via Perplexity)", query)];
         for (i, result) in results.iter().take(self.max_results).enumerate() {
-            let title = result
-                .get("title")
-                .and_then(serde_json::Value::as_str)
-                .unwrap_or("No title");
-            let url = result
-                .get("url")
-                .and_then(serde_json::Value::as_str)
-                .unwrap_or("");
-            let snippet = result
-                .get("snippet")
-                .and_then(serde_json::Value::as_str)
-                .unwrap_or("")
-                .trim();
+            let title = result.get("title").and_then(serde_json::Value::as_str).unwrap_or("No title");
+            let url = result.get("url").and_then(serde_json::Value::as_str).unwrap_or("");
+            let snippet = result.get("snippet").and_then(serde_json::Value::as_str).unwrap_or("").trim();
 
             lines.push(format!("{}. {}", i + 1, title));
             lines.push(format!("   {}", url));
@@ -564,18 +455,11 @@ impl WebSearch {
     }
 
     async fn search_exa(&self, query: &str) -> anyhow::Result<String> {
-        let api_key = self.get_next_exa_api_key().ok_or_else(|| {
-            anyhow::anyhow!(
-                "web_search provider 'exa' requires [web_search].exa_api_key or [web_search].api_key in config.toml"
-            )
-        })?;
+        let api_key = self
+            .get_next_exa_api_key()
+            .ok_or_else(|| anyhow::anyhow!("web_search provider 'exa' requires [web_search].exa_api_key or [web_search].api_key in config.toml"))?;
 
-        let api_url = self
-            .api_url
-            .as_deref()
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-            .unwrap_or("https://api.exa.ai");
+        let api_url = self.api_url.as_deref().map(str::trim).filter(|s| !s.is_empty()).unwrap_or("https://api.exa.ai");
         let endpoint = format!("{}/search", api_url.trim_end_matches('/'));
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(self.timeout_secs))
@@ -607,8 +491,7 @@ impl WebSearch {
             anyhow::bail!("Exa search failed with status {}: {}", status.as_u16(), raw);
         }
 
-        let parsed: serde_json::Value = serde_json::from_str(&raw)
-            .map_err(|e| anyhow::anyhow!("Invalid Exa response JSON: {e}"))?;
+        let parsed: serde_json::Value = serde_json::from_str(&raw).map_err(|e| anyhow::anyhow!("Invalid Exa response JSON: {e}"))?;
         let results = parsed
             .get("results")
             .and_then(serde_json::Value::as_array)
@@ -620,20 +503,9 @@ impl WebSearch {
 
         let mut lines = vec![format!("Search results for: {} (via Exa)", query)];
         for (i, result) in results.iter().take(self.max_results).enumerate() {
-            let title = result
-                .get("title")
-                .and_then(serde_json::Value::as_str)
-                .unwrap_or("No title");
-            let url = result
-                .get("url")
-                .and_then(serde_json::Value::as_str)
-                .unwrap_or("");
-            let snippet = result
-                .get("summary")
-                .or_else(|| result.get("text"))
-                .and_then(serde_json::Value::as_str)
-                .unwrap_or("")
-                .trim();
+            let title = result.get("title").and_then(serde_json::Value::as_str).unwrap_or("No title");
+            let url = result.get("url").and_then(serde_json::Value::as_str).unwrap_or("");
+            let snippet = result.get("summary").or_else(|| result.get("text")).and_then(serde_json::Value::as_str).unwrap_or("").trim();
 
             lines.push(format!("{}. {}", i + 1, title));
             lines.push(format!("   {}", url));
@@ -646,12 +518,7 @@ impl WebSearch {
     }
 
     async fn search_jina(&self, query: &str) -> anyhow::Result<String> {
-        let api_url = self
-            .api_url
-            .as_deref()
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-            .unwrap_or("https://s.jina.ai");
+        let api_url = self.api_url.as_deref().map(str::trim).filter(|s| !s.is_empty()).unwrap_or("https://s.jina.ai");
 
         let encoded_query = urlencoding::encode(query);
         let mut url = format!("{}/{}", api_url.trim_end_matches('/'), encoded_query);
@@ -675,23 +542,14 @@ impl WebSearch {
         let mut request = client.get(url).header("Accept", "text/plain");
         if let Some(api_key) = self.get_next_jina_api_key() {
             let token = api_key.trim().to_string();
-            request = request
-                .header(reqwest::header::AUTHORIZATION, format!("Bearer {}", token))
-                .header("x-api-key", token);
+            request = request.header(reqwest::header::AUTHORIZATION, format!("Bearer {}", token)).header("x-api-key", token);
         }
 
-        let response = request
-            .send()
-            .await
-            .map_err(|e| anyhow::anyhow!("Jina search failed: {e}"))?;
+        let response = request.send().await.map_err(|e| anyhow::anyhow!("Jina search failed: {e}"))?;
         let status = response.status();
         let body = response.text().await?;
         if !status.is_success() {
-            anyhow::bail!(
-                "Jina search failed with status {}: {}",
-                status.as_u16(),
-                body
-            );
+            anyhow::bail!("Jina search failed with status {}: {}", status.as_u16(), body);
         }
 
         let trimmed = body.trim();
@@ -699,10 +557,7 @@ impl WebSearch {
             return Ok(format!("No results found for: {}", query));
         }
 
-        Ok(format!(
-            "Search results for: {} (via Jina)\n{}",
-            query, trimmed
-        ))
+        Ok(format!("Search results for: {} (via Jina)\n{}", query, trimmed))
     }
 
     async fn search_with_provider(&self, provider: &str, query: &str) -> anyhow::Result<String> {
@@ -761,9 +616,10 @@ impl Tool for WebSearch {
 
     async fn execute(&self, args: serde_json::Value) -> anyhow::Result<ToolOutput, ToolError> {
         let start = std::time::Instant::now();
-        let query = args.get("query").and_then(|q| q.as_str()).ok_or_else(|| {
-            ToolError::InvalidParameters("Missing required parameter: query".to_string())
-        })?;
+        let query = args
+            .get("query")
+            .and_then(|q| q.as_str())
+            .ok_or_else(|| ToolError::InvalidParameters("Missing required parameter: query".to_string()))?;
 
         if query.trim().is_empty() {
             ToolError::InvalidParameters("Search query cannot be empty".to_string());
@@ -787,12 +643,7 @@ impl Tool for WebSearch {
                         break;
                     }
                     Err(error) => {
-                        provider_errors.push(format!(
-                            "{provider} attempt {}/{}: {}",
-                            attempt + 1,
-                            retry_attempts,
-                            error
-                        ));
+                        provider_errors.push(format!("{provider} attempt {}/{}: {}", attempt + 1, retry_attempts, error));
                         attempt += 1;
                         if attempt < retry_attempts {
                             tokio::time::sleep(Duration::from_millis(self.retry_backoff_ms)).await;
@@ -805,12 +656,7 @@ impl Tool for WebSearch {
             }
         }
 
-        let result = result.ok_or_else(|| {
-            ToolError::ExecutionFailed(format!(
-                "All configured web_search providers failed: {}",
-                provider_errors.join(" | ")
-            ))
-        })?;
+        let result = result.ok_or_else(|| ToolError::ExecutionFailed(format!("All configured web_search providers failed: {}", provider_errors.join(" | "))))?;
 
         let result = json!({
             "content": result,

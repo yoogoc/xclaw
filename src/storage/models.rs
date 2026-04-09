@@ -1,6 +1,6 @@
 use diesel::prelude::*;
 
-use super::schema::{sessions, threads, turns, turn_tool_calls};
+use super::schema::{sessions, threads, turn_tool_calls, turns};
 
 // ── Session ──
 
