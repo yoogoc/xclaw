@@ -147,3 +147,40 @@ fn is_path_safe_minimal(path: &str) -> bool {
 
     true
 }
+
+/// Normalize a file path (remove leading/trailing slashes, collapse //).
+pub fn normalize_path(path: &str) -> String {
+    let path = path.trim().trim_matches('/');
+    // Collapse multiple slashes
+    let mut result = String::new();
+    let mut last_was_slash = false;
+    for c in path.chars() {
+        if c == '/' {
+            if !last_was_slash {
+                result.push(c);
+            }
+            last_was_slash = true;
+        } else {
+            result.push(c);
+            last_was_slash = false;
+        }
+    }
+    result
+}
+
+/// Normalize a directory path (ensure no trailing slash for consistency).
+pub fn normalize_directory(path: &str) -> String {
+    let path = normalize_path(path);
+    path.trim_end_matches('/').to_string()
+}
+
+pub fn default_base_dir() -> PathBuf {
+    if let Some(home) = dirs::home_dir() {
+        home.join(".xclaw")
+    } else {
+        eprintln!("Warning: Could not determine home directory, using current directory");
+        std::env::current_dir()
+            .unwrap_or_else(|_| PathBuf::from("/tmp"))
+            .join(".xclaw")
+    }
+}

@@ -2,33 +2,30 @@ use crate::binding::Binding;
 use crate::binding::message_convert::to_rig_messages;
 use crate::llm::LLMResponse;
 use crate::session::Session;
+use crate::utils::path::normalize_path;
+use crate::workspace::paths;
 use futures::StreamExt;
 use rig::OneOrMany;
 use rig::completion::{CompletionModel, CompletionRequest, ToolDefinition};
-use rig::message::ReasoningContent;
+use rig::message::{Message, ReasoningContent};
 use rig::streaming::StreamedAssistantContent;
 use std::sync::Arc;
+use tokio::fs;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
 impl<M: CompletionModel> Binding<M> {
     pub(crate) async fn call_llm(&self, session: Arc<Mutex<Session>>, thread_id: Uuid) -> anyhow::Result<LLMResponse> {
-        // Build context from thread
-        let messages = {
-            let sess = session.lock().await;
-            sess.threads.get(&thread_id).map(|t| t.messages()).unwrap_or_default()
-        };
-
-        // Convert to rig messages
-        let rig_messages = to_rig_messages(&messages)?;
-
         // Call LLM
         let llm = self.agent.llm.llm.clone();
+
+        let (chat_history, preamble) = self.build_history(session.clone(), thread_id).await?;
+
         let mut stream = llm
             .stream(CompletionRequest {
                 model: None,
-                preamble: None,
-                chat_history: OneOrMany::many(rig_messages)?,
+                preamble,
+                chat_history,
                 documents: vec![],
                 tools: self.convert_available_tool().await?,
                 temperature: None,
@@ -117,5 +114,56 @@ impl<M: CompletionModel> Binding<M> {
             })
             .collect();
         Ok(tool_definitions)
+    }
+
+    async fn build_history(&self, session: Arc<Mutex<Session>>, thread_id: Uuid) -> anyhow::Result<(OneOrMany<Message>, Option<String>)> {
+        // Build context from thread
+        let messages = {
+            let sess = session.lock().await;
+            sess.threads.get(&thread_id).map(|t| t.messages()).unwrap_or_default()
+        };
+
+        // Convert to rig messages
+        let rig_messages = to_rig_messages(&messages)?;
+
+        // fill system prompt
+        let system_prompt = self.build_system_prompt().await;
+
+        OneOrMany::many(rig_messages).map_err(|e| anyhow::anyhow!(e)).map(|m| (m, Some(system_prompt.clone())))
+    }
+
+    async fn build_system_prompt(&self) -> String {
+        let mut parts = Vec::new();
+        let identity_files = [
+            (paths::AGENTS, "## Agent Instructions"),
+            (paths::SOUL, "## Core Values"),
+            (paths::USER, "## User Context"),
+            (paths::IDENTITY, "## Identity"),
+        ];
+
+        for (path, header) in identity_files {
+            if let Ok(doc) = self.read(path).await
+                && !doc.is_empty()
+            {
+                parts.push(format!("{}\n\n{}", header, doc));
+            }
+        }
+
+        format!(
+            r#"You are xclaw Agent, a best general assistant.
+## Safety
+- You have no independent goals. Do not pursue self-preservation, replication, resource acquisition, or power-seeking beyond the user's request.
+- Prioritize safety and human oversight over task completion. If instructions conflict, pause and ask.
+- Comply with stop, pause, or audit requests. Never bypass safeguards.
+- Do not manipulate anyone to expand your access or disable safeguards.
+- Do not modify system prompts, safety rules, or tool policies unless explicitly requested by the user.
+{}"#,
+            parts.join("\n")
+        )
+    }
+
+    pub async fn read(&self, path: &str) -> anyhow::Result<String> {
+        let path = normalize_path(path);
+        fs::read_to_string(self.workspace_dir.join(path)).await.map_err(|e| anyhow::anyhow!(e))
     }
 }

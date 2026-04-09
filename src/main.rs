@@ -1,3 +1,4 @@
+use std::fs;
 use anyhow::Result;
 use log::info;
 use serenity::all::ChannelId;
@@ -12,6 +13,7 @@ use xclaw::llm::LlmProvider;
 use xclaw::session::SessionManager;
 use xclaw::storage::Database;
 use xclaw::tools::ToolRegistry;
+use xclaw::utils::path::default_base_dir;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -58,8 +60,12 @@ async fn main() -> Result<()> {
             .ok_or_else(|| anyhow::anyhow!("Channel '{}' not found", binding_config.channel))?;
         let channel_manager = Arc::new(create_channel(channel_config).await?);
 
+        // find workspace
+        let workspace_dir = binding_config.workspace_dir.clone().unwrap_or(default_base_dir().join(binding_id.clone()));
+        fs::create_dir_all(workspace_dir.clone())?;
+
         // Create and spawn binding
-        let binding = Binding::new(agent, channel_manager, session_manager.clone(), binding_id.clone(), chrono_tz::UTC);
+        let binding = Binding::new(agent, channel_manager, session_manager.clone(), binding_id.clone(), chrono_tz::UTC, workspace_dir);
 
         let task = tokio::spawn(async move {
             if let Err(e) = binding.start().await {

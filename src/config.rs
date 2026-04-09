@@ -1,7 +1,7 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
@@ -87,6 +87,7 @@ pub struct BindingConfig {
     pub channel: String,
     #[serde(rename = "requireMention", default = "default_false")]
     pub require_mention: bool,
+    pub workspace_dir: Option<PathBuf>,
 }
 
 impl BindingConfig {

@@ -5,6 +5,7 @@ mod loop_type;
 mod message_convert;
 pub mod run_loop;
 
+use std::path::PathBuf;
 use crate::agent::Agent;
 use crate::binding::intent::Intent;
 use crate::channel::{ChannelManager, IncomingMessage};
@@ -23,10 +24,12 @@ pub struct Binding<M: CompletionModel> {
     tool_registry: Arc<ToolRegistry>,
     binding_id: String,
     user_tz: chrono_tz::Tz,
+
+    workspace_dir: PathBuf,
 }
 
 impl<M: CompletionModel> Binding<M> {
-    pub fn new(agent: Arc<Agent<M>>, channel: Arc<ChannelManager>, session_manager: Arc<SessionManager>, binding_id: impl Into<String>, tz: chrono_tz::Tz) -> Self {
+    pub fn new(agent: Arc<Agent<M>>, channel: Arc<ChannelManager>, session_manager: Arc<SessionManager>, binding_id: impl Into<String>, tz: chrono_tz::Tz, workspace_dir: PathBuf) -> Self {
         Self {
             agent,
             channel,
@@ -34,6 +37,7 @@ impl<M: CompletionModel> Binding<M> {
             tool_registry: Arc::new(ToolRegistry::new()),
             binding_id: binding_id.into(),
             user_tz: tz,
+            workspace_dir,
         }
     }
 }
