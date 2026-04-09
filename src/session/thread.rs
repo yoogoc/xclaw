@@ -118,7 +118,7 @@ impl Thread {
     }
 
     /// Complete the current turn with a response.
-    pub fn complete_turn(&mut self, response: impl Into<String>) {
+    pub fn complete_turn(&mut self, response: Option<String>) {
         if let Some(turn) = self.turns.last_mut() {
             turn.complete(response);
         }
@@ -323,7 +323,7 @@ impl Thread {
                     .peek()
                     .is_some_and(|n| n.role == Role::Assistant && n.tool_calls.is_none());
                 if is_final_assistant && let Some(response) = iter.next() {
-                    turn.complete(&response.content);
+                    turn.complete(Some(response.content));
                 }
 
                 self.turns.push(turn);

@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS turn_tool_calls;
+DROP TABLE IF EXISTS turns;
+DROP TABLE IF EXISTS threads;
+DROP TABLE IF EXISTS sessions;

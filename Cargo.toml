@@ -23,7 +23,8 @@ anyhow = { version = "1.0.102", features = ["backtrace"] }
 
 
 # orm
-diesel = { version = "2.3.6", features = ["sqlite", "returning_clauses_for_sqlite_3_35"] }
+diesel = { version = "2.3.6", features = ["sqlite", "returning_clauses_for_sqlite_3_35", "r2d2"] }
+diesel_migrations = "2.3"
 
 # ai sdk
 rig-core = { version = "0.31.0", features = ["all"] }

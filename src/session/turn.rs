@@ -62,7 +62,7 @@ pub struct Turn {
 
     pub current_tool_iterations: usize,
 
-    draft_message_id: Option<String>,
+    pub draft_message_id: Option<String>,
 }
 
 impl Turn {
@@ -93,8 +93,8 @@ impl Turn {
     }
 
     /// Complete this turn.
-    pub fn complete(&mut self, response: impl Into<String>) {
-        self.response = Some(response.into());
+    pub fn complete(&mut self, response: Option<String>) {
+        self.response = response;
         self.state = TurnState::Completed;
         self.completed_at = Some(Utc::now());
         // Free image data — only needed for the initial LLM call, not subsequent turns
@@ -141,6 +141,17 @@ impl Turn {
     pub fn record_tool_error(&mut self, error: impl Into<String>) {
         if let Some(call) = self.tool_calls.last_mut() {
             call.error = Some(error.into());
+        }
+    }
+
+    pub fn record_reasoning(&mut self, reason: impl Into<String>) {
+        match &self.thinking {
+            None => {
+                self.thinking = Some(reason.into());
+            }
+            Some(origin) => {
+                self.thinking = Some(format!("{}\n{}", origin, reason.into()));
+            }
         }
     }
 }

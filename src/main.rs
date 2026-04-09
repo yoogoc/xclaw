@@ -10,6 +10,7 @@ use xcraw::config::Config;
 use xcraw::hooks::HookRegistry;
 use xcraw::llm::LlmProvider;
 use xcraw::session::SessionManager;
+use xcraw::storage::Database;
 use xcraw::tools::ToolRegistry;
 
 #[tokio::main]
@@ -27,8 +28,11 @@ async fn main() -> Result<()> {
     let config = Config::load("config.yaml")?;
     info!("Loaded config with {} bindings", config.bindings.len());
 
-    // Create session manager
-    let session_manager = Arc::new(SessionManager::new());
+    // Create database and session manager
+    let database_url = config.database_url();
+    info!("Initializing database: {}", database_url);
+    let db = Arc::new(Database::new(&database_url)?);
+    let session_manager = Arc::new(SessionManager::new_with_db(db).await?);
 
     // Create bindings
     let mut tasks = vec![];

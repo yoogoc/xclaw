@@ -10,6 +10,23 @@ pub struct Config {
     pub channels: Vec<ChannelConfig>,
     #[serde(default)]
     pub bindings: Vec<BindingConfig>,
+    #[serde(default)]
+    pub storage: Option<StorageConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StorageConfig {
+    pub database_url: Option<String>,
+}
+
+impl Config {
+    /// Resolve the database URL from config, falling back to default.
+    pub fn database_url(&self) -> String {
+        self.storage
+            .as_ref()
+            .and_then(|s| s.database_url.clone())
+            .unwrap_or_else(|| "workspace/storage/xcraw.db".to_string())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

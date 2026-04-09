@@ -106,12 +106,9 @@ impl<M: CompletionModel> Binding<M> {
             }
             (Intent::UserInput, ThreadState::AwaitingApproval) => {
                 // Interrupt current turn and start new one
-                {
-                    let mut sess = session.lock().await;
-                    if let Some(thread) = sess.threads.get_mut(&thread_id) {
-                        thread.interrupt();
-                    }
-                }
+                self.session_manager
+                    .thread_interrupt(session.clone(), thread_id)
+                    .await;
                 self.process_user_input(session.clone(), thread_id, message)
                     .await
             }
@@ -128,10 +125,9 @@ impl<M: CompletionModel> Binding<M> {
                     .await
             }
             (Intent::Interrupt, _) => {
-                let mut sess = session.lock().await;
-                if let Some(thread) = sess.threads.get_mut(&thread_id) {
-                    thread.interrupt();
-                }
+                self.session_manager
+                    .thread_interrupt(session.clone(), thread_id)
+                    .await;
                 Ok(())
             }
             _ => {
@@ -144,12 +140,9 @@ impl<M: CompletionModel> Binding<M> {
         };
 
         if let Err(err) = result {
-            {
-                let mut sess = session.lock().await;
-                if let Some(thread) = sess.threads.get_mut(&thread_id) {
-                    thread.fail_turn(err.to_string());
-                }
-            }
+            self.session_manager
+                .thread_fail_turn(session.clone(), thread_id, &err.to_string())
+                .await;
 
             let channel = self.channel.clone();
             let thread_id = message
@@ -169,11 +162,9 @@ impl<M: CompletionModel> Binding<M> {
         message: &IncomingMessage,
     ) -> anyhow::Result<()> {
         // Start new turn
-        {
-            let mut sess = session.lock().await;
-            let thread = sess.threads.get_mut(&thread_id).unwrap();
-            thread.start_turn(&message.content);
-        }
+        self.session_manager
+            .thread_start_turn(session.clone(), thread_id, &message.content)
+            .await;
 
         // Run agent loop
         self.run_loop(session, thread_id).await
@@ -202,20 +193,26 @@ impl<M: CompletionModel> Binding<M> {
                         .unwrap_or_default()
                 };
 
-                let mut sess = session.lock().await;
-                for tool_name in tool_names {
-                    sess.auto_approve_tool(tool_name);
-                }
+                let persist_info = {
+                    let mut sess = session.lock().await;
+                    for tool_name in tool_names {
+                        sess.auto_approve_tool(tool_name);
+                    }
+                    (sess.id.to_string(), sess.auto_approved_tools.clone())
+                };
+                let (session_id, tools) = persist_info;
+                self.session_manager
+                    .persist_auto_approve(&session_id, &tools)
+                    .await;
             }
 
             // Continue loop
             self.run_loop(session, thread_id).await
         } else {
             // Reject: fail turn
-            let mut sess = session.lock().await;
-            if let Some(thread) = sess.threads.get_mut(&thread_id) {
-                thread.fail_turn("Tool approval rejected");
-            }
+            self.session_manager
+                .thread_fail_turn(session.clone(), thread_id, "Tool approval rejected")
+                .await;
             Ok(())
         }
     }
@@ -230,15 +227,10 @@ impl<M: CompletionModel> Binding<M> {
             let outcome = self.run_agentic_loop(session.clone(), thread_id).await?;
 
             match outcome {
-                LoopOutcome::Response(_response) => {
-                    // Complete turn
-                    {
-                        let mut sess = session.lock().await;
-                        if let Some(thread) = sess.threads.get_mut(&thread_id) {
-                            thread.complete_turn("Response completed");
-                            thread.state = ThreadState::Idle;
-                        }
-                    }
+                LoopOutcome::Response(response) => {
+                    self.session_manager
+                        .thread_complete_turn(session.clone(), thread_id, response.content)
+                        .await;
                     break;
                 }
 
@@ -252,31 +244,37 @@ impl<M: CompletionModel> Binding<M> {
                         continue;
                     } else {
                         // Need approval
-                        {
-                            let mut sess = session.lock().await;
-                            if let Some(thread) = sess.threads.get_mut(&thread_id) {
-                                thread.state = ThreadState::AwaitingApproval;
-                                thread.pending_approvals =
-                                    approvals.into_iter().map(|b| *b).collect();
-                            }
+                        let mut sess = session.lock().await;
+                        if let Some(thread) = sess.threads.get_mut(&thread_id) {
+                            thread.state = ThreadState::AwaitingApproval;
+                            thread.pending_approvals = approvals.into_iter().map(|b| *b).collect();
+                            thread.updated_at = chrono::Utc::now();
+                            let pa_json = serde_json::to_string(&thread.pending_approvals)
+                                .unwrap_or_else(|_| "[]".to_string());
+
+                            self.session_manager
+                                .persist_thread_awaiting_approval(
+                                    &thread.id.to_string(),
+                                    &pa_json,
+                                    &thread.updated_at.to_rfc3339(),
+                                )
+                                .await;
                         }
                         break;
                     }
                 }
 
                 LoopOutcome::MaxIterations => {
-                    let mut sess = session.lock().await;
-                    if let Some(thread) = sess.threads.get_mut(&thread_id) {
-                        thread.fail_turn("Max iterations reached");
-                    }
+                    self.session_manager
+                        .thread_fail_turn(session.clone(), thread_id, "Max iterations reached")
+                        .await;
                     break;
                 }
 
                 LoopOutcome::Stopped => {
-                    let mut sess = session.lock().await;
-                    if let Some(thread) = sess.threads.get_mut(&thread_id) {
-                        thread.interrupt();
-                    }
+                    self.session_manager
+                        .thread_interrupt(session.clone(), thread_id)
+                        .await;
                     break;
                 }
             }
@@ -389,12 +387,18 @@ impl<M: CompletionModel> Binding<M> {
         for approval in approvals {
             if let Some(tool) = tools.get(&approval.tool_name) {
                 // Record call
-                {
-                    let mut sess = session.lock().await;
-                    if let Some(thread) = sess.threads.get_mut(&thread_id) {
-                        if let Some(turn) = thread.last_turn_mut() {
-                            turn.record_tool_call(&approval.tool_name, approval.parameters.clone());
-                        }
+                let mut sess = session.lock().await;
+                if let Some(thread) = sess.threads.get_mut(&thread_id) {
+                    if let Some(turn) = thread.last_turn_mut() {
+                        turn.record_tool_call(&approval.tool_name, approval.parameters.clone());
+                        let idx = turn.tool_calls.len() - 1;
+                        self.session_manager
+                            .persist_tool_call(
+                                &turn.id.to_string(),
+                                idx,
+                                &turn.tool_calls[idx].clone(),
+                            )
+                            .await;
                     }
                 }
 
@@ -407,15 +411,25 @@ impl<M: CompletionModel> Binding<M> {
                     let mut sess = session.lock().await;
                     if let Some(thread) = sess.threads.get_mut(&thread_id) {
                         if let Some(turn) = thread.last_turn_mut() {
+                            let turn_id = turn.id.to_string();
+                            let idx = turn.tool_calls.len().saturating_sub(1);
                             match result {
                                 Ok(output) => {
-                                    turn.record_tool_result(serde_json::to_value(output)?);
+                                    let val = serde_json::to_value(output)?;
+                                    turn.record_tool_result(val.clone());
                                     drop(sess);
+                                    self.session_manager
+                                        .persist_tool_result(&turn_id, idx, Some(&val), None)
+                                        .await;
                                     self.call_llm(session.clone(), thread_id).await?;
                                 }
                                 Err(e) => {
-                                    turn.record_tool_error(e.to_string());
+                                    let err_str = e.to_string();
+                                    turn.record_tool_error(err_str.clone());
                                     drop(sess);
+                                    self.session_manager
+                                        .persist_tool_result(&turn_id, idx, None, Some(&err_str))
+                                        .await;
                                 }
                             }
                         }
@@ -501,6 +515,9 @@ impl<M: CompletionModel> Binding<M> {
                         for content in reasoning.content {
                             match content {
                                 ReasoningContent::Text { text, signature: _ } => {
+                                    if let Some(turn) = thread.last_turn_mut() {
+                                        turn.record_reasoning(text.clone());
+                                    }
                                     debug!("Received reasoning(text): {:?}", text);
                                     let text = format!("<think>{}</think>\n", text);
                                     self.channel
@@ -514,6 +531,9 @@ impl<M: CompletionModel> Binding<M> {
                                     debug!("Received reasoning(data): {:?}", data);
                                 }
                                 ReasoningContent::Summary(summary) => {
+                                    if let Some(turn) = thread.last_turn_mut() {
+                                        turn.record_reasoning(summary.clone());
+                                    }
                                     debug!("Received reasoning(summary): {:?}", summary);
                                     let summary = format!("<think>{}</think>\n", summary);
                                     self.channel
