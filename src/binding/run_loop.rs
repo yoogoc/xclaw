@@ -141,12 +141,14 @@ impl<M: CompletionModel> Binding<M> {
         for approval in approvals {
             if let Some(tool) = tools.get(&approval.tool_name) {
                 // Record call
-                let mut sess = session.lock().await;
-                if let Some(thread) = sess.threads.get_mut(&thread_id) {
-                    if let Some(turn) = thread.last_turn_mut() {
-                        turn.record_tool_call(&approval.tool_name, approval.parameters.clone());
-                        let idx = turn.tool_calls.len() - 1;
-                        self.session_manager.persist_tool_call(&turn.id.to_string(), idx, &turn.tool_calls[idx].clone()).await;
+                {
+                    let mut sess = session.lock().await;
+                    if let Some(thread) = sess.threads.get_mut(&thread_id) {
+                        if let Some(turn) = thread.last_turn_mut() {
+                            turn.record_tool_call(&approval.tool_name, approval.parameters.clone());
+                            let idx = turn.tool_calls.len() - 1;
+                            self.session_manager.persist_tool_call(&turn.id.to_string(), idx, &turn.tool_calls[idx].clone()).await;
+                        }
                     }
                 }
 

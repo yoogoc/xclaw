@@ -68,7 +68,7 @@ impl<M: CompletionModel> Binding<M> {
                                         turn.record_reasoning(text.clone());
                                     }
                                     debug!("Received reasoning(text): {:?}", text);
-                                    let text = format!("<think>{}</think>\n", text);
+                                    let text = format!("<think>\n{}\n</think>\n\n", text);
                                     self.channel.send_chunk(&thread_id_str, draft_message_id.clone(), &text).await?;
                                 }
                                 ReasoningContent::Encrypted(encrypted) => {
@@ -82,7 +82,7 @@ impl<M: CompletionModel> Binding<M> {
                                         turn.record_reasoning(summary.clone());
                                     }
                                     debug!("Received reasoning(summary): {:?}", summary);
-                                    let summary = format!("<think>{}</think>\n", summary);
+                                    let summary = format!("<think>\n{}\n</think>\n\n", summary);
                                     self.channel.send_chunk(&thread_id_str, draft_message_id.clone(), &summary).await?;
                                 }
                                 _ => unreachable!("Unexpected content type"),
