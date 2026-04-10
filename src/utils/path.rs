@@ -178,7 +178,7 @@ pub fn default_base_dir() -> PathBuf {
     if let Some(home) = dirs::home_dir() {
         home.join(".xclaw")
     } else {
-        eprintln!("Warning: Could not determine home directory, using current directory");
+        warn!("Could not determine home directory, using current directory");
         std::env::current_dir()
             .unwrap_or_else(|_| PathBuf::from("/tmp"))
             .join(".xclaw")

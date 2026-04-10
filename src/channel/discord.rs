@@ -70,21 +70,21 @@ impl EventHandler for Handler {
         let _ = self.message_tx.send(incoming);
     }
     async fn ready(&self, _ctx: Context, ready: Ready) {
-        println!("{} is connected!", ready.user.name);
+        info!("{} is connected!", ready.user.name);
     }
     async fn resume(&self, _ctx: Context, _event: ResumedEvent) {
-        println!("resume!");
+        info!("resume!");
     }
     async fn shard_stage_update(&self, _ctx: Context, event: ShardStageUpdateEvent) {
         match event.new {
             ConnectionStage::Disconnected => {
-                println!("Shard {} 已断开连接", event.shard_id);
+                info!("Shard {} 已断开连接", event.shard_id);
             }
             ConnectionStage::Connecting => {
-                println!("Shard {} 正在连接...", event.shard_id);
+                info!("Shard {} 正在连接...", event.shard_id);
             }
             ConnectionStage::Connected => {
-                println!("Shard {} 已连接", event.shard_id);
+                info!("Shard {} 已连接", event.shard_id);
             }
             _ => {}
         }
