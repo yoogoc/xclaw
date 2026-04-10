@@ -5,7 +5,7 @@ mod websocket;
 
 pub use channel::*;
 pub use discord::{DiscordChannel, DiscordConfig};
-pub use message::{IncomingMessage, MessageStream, OutgoingResponse};
+pub use message::{IncomingAttachment, IncomingMessage, MessageStream, OutgoingResponse};
 pub use websocket::WebSocketChannel;
 
 use std::collections::HashMap;

@@ -1,4 +1,5 @@
-use crate::channel::{Channel, IncomingMessage, MessageStream, OutgoingResponse, ReplySize};
+use crate::channel::message::AttachmentKind;
+use crate::channel::{Channel, IncomingAttachment, IncomingMessage, MessageStream, OutgoingResponse, ReplySize};
 use crate::utils::chunk_by_chars;
 use anyhow::Result;
 use async_trait::async_trait;
@@ -64,7 +65,25 @@ impl EventHandler for Handler {
                 "channel_id": msg.channel_id.to_string(),
             }),
             timezone: None,
-            attachments: vec![],
+            attachments: msg
+                .attachments
+                .iter()
+                .map(|a| {
+                    let mime_type = a.content_type.clone().unwrap_or_else(|| "application/octet-stream".to_string());
+                    IncomingAttachment {
+                        id: a.id.to_string(),
+                        kind: AttachmentKind::from_mime_type(&mime_type),
+                        mime_type,
+                        filename: Some(a.filename.clone()),
+                        size_bytes: Some(a.size as u64),
+                        source_url: Some(a.url.clone()),
+                        storage_key: None,
+                        extracted_text: None,
+                        data: vec![],
+                        duration_secs: None,
+                    }
+                })
+                .collect(),
         };
 
         let _ = self.message_tx.send(incoming);

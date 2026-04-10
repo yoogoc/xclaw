@@ -1,6 +1,6 @@
 mod attachment;
 
-use crate::channel::message::attachment::IncomingAttachment;
+pub use attachment::{AttachmentKind, IncomingAttachment};
 use chrono::{DateTime, Utc};
 use futures::Stream;
 use std::pin::Pin;
