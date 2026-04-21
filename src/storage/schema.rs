@@ -1,6 +1,18 @@
 // @generated automatically by Diesel CLI.
 
 diesel::table! {
+    attachments (id) {
+        id -> Text,
+        kind -> Text,
+        mime_type -> Text,
+        filename -> Nullable<Text>,
+        size_bytes -> Nullable<Integer>,
+        source_url -> Nullable<Text>,
+        created_at -> Text,
+    }
+}
+
+diesel::table! {
     sessions (id) {
         id -> Text,
         binding_id -> Text,
@@ -28,6 +40,18 @@ diesel::table! {
 }
 
 diesel::table! {
+    turn_tool_calls (id) {
+        id -> Nullable<Integer>,
+        turn_id -> Text,
+        call_index -> Integer,
+        name -> Text,
+        parameters -> Text,
+        result -> Nullable<Text>,
+        error -> Nullable<Text>,
+    }
+}
+
+diesel::table! {
     turns (id) {
         id -> Text,
         thread_id -> Text,
@@ -42,18 +66,7 @@ diesel::table! {
         error -> Nullable<Text>,
         current_tool_iterations -> Integer,
         draft_message_id -> Nullable<Text>,
-    }
-}
-
-diesel::table! {
-    turn_tool_calls (id) {
-        id -> Integer,
-        turn_id -> Text,
-        call_index -> Integer,
-        name -> Text,
-        parameters -> Text,
-        result -> Nullable<Text>,
-        error -> Nullable<Text>,
+        attachments -> Text,
     }
 }
 
@@ -61,4 +74,4 @@ diesel::joinable!(threads -> sessions (session_id));
 diesel::joinable!(turns -> threads (thread_id));
 diesel::joinable!(turn_tool_calls -> turns (turn_id));
 
-diesel::allow_tables_to_appear_in_same_query!(sessions, threads, turns, turn_tool_calls,);
+diesel::allow_tables_to_appear_in_same_query!(attachments, sessions, threads, turn_tool_calls, turns,);

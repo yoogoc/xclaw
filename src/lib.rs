@@ -15,6 +15,7 @@ pub mod workspace;
 
 pub mod errors;
 pub mod utils;
+pub mod attachment;
 
 #[macro_use]
 extern crate log;

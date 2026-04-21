@@ -317,10 +317,13 @@ impl SessionManager {
     /// Start a new turn on a thread, update in-memory state, and persist.
     ///
     /// Encapsulates: `thread.start_turn(user_input)` + DB `insert_turn()` + `update_thread_state()`.
-    pub async fn thread_start_turn(&self, session: Arc<Mutex<Session>>, thread_id: Uuid, user_input: &str) {
+    pub async fn thread_start_turn(&self, session: Arc<Mutex<Session>>, thread_id: Uuid, user_input: &str, attachments: Vec<crate::message::MessageAttachment>) {
         let mut sess = session.lock().await;
         if let Some(thread) = sess.threads.get_mut(&thread_id) {
             thread.start_turn(user_input);
+            if let Some(turn) = thread.last_turn_mut() {
+                turn.attachments = attachments;
+            }
             if let Some(turn) = thread.last_turn() {
                 self.persist_turn_started(&turn.clone(), &thread.id.to_string(), &thread.updated_at.to_rfc3339()).await;
             }

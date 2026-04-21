@@ -297,4 +297,48 @@ impl Database {
         })
         .await
     }
+
+    // ── Attachment ──
+
+    pub async fn insert_attachment(&self, id: String, kind: String, mime_type: String, filename: Option<String>, size_bytes: Option<i32>, source_url: Option<String>, created_at: String) -> Result<()> {
+        self.run(move |conn| {
+            let row = NewAttachmentRow {
+                id: &id,
+                kind: &kind,
+                mime_type: &mime_type,
+                filename: filename.as_deref(),
+                size_bytes,
+                source_url: source_url.as_deref(),
+                created_at: &created_at,
+            };
+            diesel::insert_into(attachments::table)
+                .values(&row)
+                .execute(conn)
+                .context("Failed to insert attachment")?;
+            Ok(())
+        })
+        .await
+    }
+
+    pub async fn get_attachment(&self, id: String) -> Result<Option<AttachmentRow>> {
+        self.run(move |conn| {
+            let result = attachments::table
+                .filter(attachments::id.eq(&id))
+                .first::<AttachmentRow>(conn)
+                .optional()
+                .context("Failed to query attachment")?;
+            Ok(result)
+        })
+        .await
+    }
+
+    pub async fn delete_attachment(&self, id: String) -> Result<()> {
+        self.run(move |conn| {
+            diesel::delete(attachments::table.filter(attachments::id.eq(&id)))
+                .execute(conn)
+                .context("Failed to delete attachment")?;
+            Ok(())
+        })
+        .await
+    }
 }

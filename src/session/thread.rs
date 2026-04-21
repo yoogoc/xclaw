@@ -192,10 +192,10 @@ impl Thread {
     pub fn messages(&self) -> Vec<ChatMessage> {
         let mut messages = Vec::new();
         for turn in &self.turns {
-            if turn.image_content_parts.is_empty() {
+            if turn.attachments.is_empty() {
                 messages.push(ChatMessage::user(&turn.user_input));
             } else {
-                messages.push(ChatMessage::user_with_parts(&turn.user_input, turn.image_content_parts.clone()));
+                messages.push(ChatMessage::user_with_attachments(&turn.user_input, turn.attachments.clone()));
             }
 
             if !turn.tool_calls.is_empty() {

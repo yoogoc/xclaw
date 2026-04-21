@@ -7,6 +7,7 @@ pub mod run_loop;
 
 use std::path::PathBuf;
 use crate::agent::Agent;
+use crate::attachment::AttachmentManager;
 use crate::binding::intent::Intent;
 use crate::channel::{ChannelManager, IncomingMessage};
 use crate::session::{Session, SessionManager, ThreadState};
@@ -22,6 +23,7 @@ pub struct Binding<M: CompletionModel> {
     channel: Arc<ChannelManager>,
     session_manager: Arc<SessionManager>,
     tool_registry: Arc<ToolRegistry>,
+    pub(crate) attachment_manager: Arc<AttachmentManager>,
     binding_id: String,
     user_tz: chrono_tz::Tz,
 
@@ -29,12 +31,13 @@ pub struct Binding<M: CompletionModel> {
 }
 
 impl<M: CompletionModel> Binding<M> {
-    pub fn new(agent: Arc<Agent<M>>, channel: Arc<ChannelManager>, session_manager: Arc<SessionManager>, binding_id: impl Into<String>, tz: chrono_tz::Tz, workspace_dir: PathBuf) -> Self {
+    pub fn new(agent: Arc<Agent<M>>, channel: Arc<ChannelManager>, session_manager: Arc<SessionManager>, attachment_manager: Arc<AttachmentManager>, binding_id: impl Into<String>, tz: chrono_tz::Tz, workspace_dir: PathBuf) -> Self {
         Self {
             agent,
             channel,
             session_manager,
             tool_registry: Arc::new(ToolRegistry::new()),
+            attachment_manager,
             binding_id: binding_id.into(),
             user_tz: tz,
             workspace_dir,
@@ -117,8 +120,10 @@ impl<M: CompletionModel> Binding<M> {
     }
 
     pub async fn process_user_input(&self, session: Arc<Mutex<Session>>, thread_id: Uuid, message: &IncomingMessage) -> anyhow::Result<()> {
+        let attachments = self.attachment_manager.ingest(&message.attachments).await;
+
         // Start new turn
-        self.session_manager.thread_start_turn(session.clone(), thread_id, &message.content).await;
+        self.session_manager.thread_start_turn(session.clone(), thread_id, &message.content, attachments).await;
 
         // Run agent loop
         self.run_loop(session, thread_id).await

@@ -1,4 +1,4 @@
-use crate::message::ContentPart;
+use crate::message::MessageAttachment;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -54,11 +54,9 @@ pub struct Turn {
     pub completed_at: Option<DateTime<Utc>>,
     /// Error message (if failed).
     pub error: Option<String>,
-    /// Transient image content parts for multimodal LLM input.
-    /// Not serialized — images are only needed for the current LLM call.
-    /// The text description in `user_input` persists for compaction/context.
-    #[serde(skip)]
-    pub image_content_parts: Vec<ContentPart>,
+    /// Attachments from the incoming message.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub attachments: Vec<MessageAttachment>,
 
     pub current_tool_iterations: usize,
 
@@ -81,7 +79,7 @@ impl Turn {
             started_at: Utc::now(),
             completed_at: None,
             error: None,
-            image_content_parts: Vec::new(),
+            attachments: Vec::new(),
             current_tool_iterations: 0,
             draft_message_id: None,
         }
@@ -92,8 +90,6 @@ impl Turn {
         self.response = response;
         self.state = TurnState::Completed;
         self.completed_at = Some(Utc::now());
-        // Free image data — only needed for the initial LLM call, not subsequent turns
-        self.image_content_parts.clear();
     }
 
     /// Fail this turn.
@@ -101,14 +97,12 @@ impl Turn {
         self.error = Some(error.into());
         self.state = TurnState::Failed;
         self.completed_at = Some(Utc::now());
-        self.image_content_parts.clear();
     }
 
     /// Interrupt this turn.
     pub fn interrupt(&mut self) {
         self.state = TurnState::Interrupted;
         self.completed_at = Some(Utc::now());
-        self.image_content_parts.clear();
     }
 
     pub fn record_draft_message_id(&mut self, draft_message_id: Option<String>) {

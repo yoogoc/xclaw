@@ -124,7 +124,7 @@ impl<M: CompletionModel> Binding<M> {
         };
 
         // Convert to rig messages
-        let rig_messages = to_rig_messages(&messages)?;
+        let rig_messages = to_rig_messages(&messages, &self.attachment_manager).await?;
 
         // fill system prompt
         let system_prompt = self.build_system_prompt().await;
