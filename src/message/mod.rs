@@ -1,11 +1,11 @@
-mod content;
+mod attachment;
 mod message;
 mod request;
 mod response;
 mod role;
 mod tool;
 
-pub use content::*;
+pub use attachment::*;
 pub use message::*;
 pub use request::*;
 #[allow(unused)]

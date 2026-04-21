@@ -5,6 +5,7 @@ use serenity::all::ChannelId;
 use std::sync::Arc;
 use tracing_subscriber::{EnvFilter, fmt};
 use xclaw::agent::Agent;
+use xclaw::attachment::AttachmentManager;
 use xclaw::binding::Binding;
 use xclaw::channel::{ChannelManager, DiscordChannel, DiscordConfig, WebSocketChannel};
 use xclaw::config::Config;
@@ -34,7 +35,7 @@ async fn main() -> Result<()> {
     let database_url = config.database_url();
     info!("Initializing database: {}", database_url);
     let db = Arc::new(Database::new(&database_url)?);
-    let session_manager = Arc::new(SessionManager::new_with_db(db).await?);
+    let session_manager = Arc::new(SessionManager::new_with_db(db.clone()).await?);
 
     // Create bindings
     let mut tasks = vec![];
@@ -64,8 +65,12 @@ async fn main() -> Result<()> {
         let workspace_dir = binding_config.workspace_dir.clone().unwrap_or(default_base_dir().join(binding_id.clone()));
         fs::create_dir_all(workspace_dir.clone())?;
 
+        // Create attachment manager
+        let attachment_root = workspace_dir.join("attachments");
+        let attachment_manager = Arc::new(AttachmentManager::new(attachment_root, db.clone())?);
+
         // Create and spawn binding
-        let binding = Binding::new(agent, channel_manager, session_manager.clone(), binding_id.clone(), chrono_tz::UTC, workspace_dir);
+        let binding = Binding::new(agent, channel_manager, session_manager.clone(), attachment_manager, binding_id.clone(), chrono_tz::UTC, workspace_dir);
 
         let task = tokio::spawn(async move {
             if let Err(e) = binding.start().await {

@@ -1,5 +1,4 @@
-use crate::channel::message::AttachmentKind;
-use crate::channel::{Channel, IncomingAttachment, IncomingMessage, MessageStream, OutgoingResponse, ReplySize};
+use crate::channel::{AttachmentKind, Channel, IncomingAttachment, IncomingMessage, MessageStream, OutgoingResponse, ReplySize};
 use crate::utils::chunk_by_chars;
 use anyhow::Result;
 use async_trait::async_trait;

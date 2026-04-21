@@ -4,6 +4,7 @@ use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
+use crate::message::MessageAttachment;
 use crate::session::{PendingApproval, Session, Thread, ThreadState, Turn, TurnState, TurnToolCall};
 
 use super::models::*;
@@ -205,6 +206,7 @@ pub struct TurnInsertValues {
     pub error: Option<String>,
     pub current_tool_iterations: i32,
     pub draft_message_id: Option<String>,
+    pub attachments: String,
 }
 
 impl TurnInsertValues {
@@ -223,6 +225,7 @@ impl TurnInsertValues {
             error: turn.error.clone(),
             current_tool_iterations: turn.current_tool_iterations as i32,
             draft_message_id: turn.draft_message_id.clone(),
+            attachments: serde_json::to_string(&turn.attachments).unwrap_or_else(|_| "[]".to_string()),
         }
     }
 
@@ -241,6 +244,7 @@ impl TurnInsertValues {
             error: self.error.as_deref(),
             current_tool_iterations: self.current_tool_iterations,
             draft_message_id: self.draft_message_id.as_deref(),
+            attachments: &self.attachments,
         }
     }
 }
@@ -259,7 +263,7 @@ pub fn turn_from_row(row: TurnRow, tool_calls: Vec<TurnToolCall>) -> Result<Turn
         started_at: str_to_dt(&row.started_at)?,
         completed_at: opt_str_to_dt(&row.completed_at)?,
         error: row.error,
-        image_content_parts: Vec::new(),
+        attachments: serde_json::from_str::<Vec<MessageAttachment>>(&row.attachments).unwrap_or_default(),
         current_tool_iterations: row.current_tool_iterations as usize,
         draft_message_id: row.draft_message_id,
     })

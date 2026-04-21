@@ -52,7 +52,8 @@ design/
 ├── communication.md       # 通信协议
 ├── tools.md              # 工具系统
 ├── heartbeat.md          # 心跳机制
-└── workflows.md          # 完整工作流程
+├── workflows.md          # 完整工作流程
+└── attachment.md         # 附件系统（双层类型、binding 转换、LLM 多模态）
 ```
 
 ### 1.4 技术栈
@@ -110,3 +111,4 @@ design/
 - [工具系统](tools.md) - 可用工具列表和使用方法
 - [心跳机制](heartbeat.md) - 任务监控和停滞检测
 - [工作流程](workflows.md) - 完整的交互流程示例
+- [附件系统](attachment.md) - 双层类型架构、binding 转换、LLM 多模态处理

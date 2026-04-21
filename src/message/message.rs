@@ -1,4 +1,4 @@
-use super::content::ContentPart;
+use super::attachment::MessageAttachment;
 use super::role::Role;
 use super::tool::ToolCall;
 use serde::{Deserialize, Serialize};
@@ -7,11 +7,9 @@ use serde::{Deserialize, Serialize};
 pub struct ChatMessage {
     pub role: Role,
     pub content: String,
-    /// Multimodal content parts (images, etc.).
-    /// When non-empty, providers serialize content as an array of parts
-    /// (with `content` included as a text part) instead of a plain string.
+    /// File or media attachments on this message (images, audio, documents).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub content_parts: Vec<ContentPart>,
+    pub attachments: Vec<MessageAttachment>,
     /// Tool call ID if this is a tool result message.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
@@ -30,7 +28,7 @@ impl ChatMessage {
         Self {
             role: Role::System,
             content: content.into(),
-            content_parts: Vec::new(),
+            attachments: Vec::new(),
             tool_call_id: None,
             name: None,
             tool_calls: None,
@@ -42,21 +40,19 @@ impl ChatMessage {
         Self {
             role: Role::User,
             content: content.into(),
-            content_parts: Vec::new(),
+            attachments: Vec::new(),
             tool_call_id: None,
             name: None,
             tool_calls: None,
         }
     }
 
-    /// Create a user message with multimodal content parts (e.g., images).
-    ///
-    /// The text `content` is included as the primary text alongside the parts.
-    pub fn user_with_parts(content: impl Into<String>, parts: Vec<ContentPart>) -> Self {
+    /// Create a user message with attachments (images, audio, documents).
+    pub fn user_with_attachments(content: impl Into<String>, attachments: Vec<MessageAttachment>) -> Self {
         Self {
             role: Role::User,
             content: content.into(),
-            content_parts: parts,
+            attachments,
             tool_call_id: None,
             name: None,
             tool_calls: None,
@@ -68,7 +64,7 @@ impl ChatMessage {
         Self {
             role: Role::Assistant,
             content: content.into(),
-            content_parts: Vec::new(),
+            attachments: Vec::new(),
             tool_call_id: None,
             name: None,
             tool_calls: None,
@@ -83,7 +79,7 @@ impl ChatMessage {
         Self {
             role: Role::Assistant,
             content: content.unwrap_or_default(),
-            content_parts: Vec::new(),
+            attachments: Vec::new(),
             tool_call_id: None,
             name: None,
             tool_calls: if tool_calls.is_empty() { None } else { Some(tool_calls) },
@@ -95,7 +91,7 @@ impl ChatMessage {
         Self {
             role: Role::Tool,
             content: content.into(),
-            content_parts: Vec::new(),
+            attachments: Vec::new(),
             tool_call_id: Some(tool_call_id.into()),
             name: Some(name.into()),
             tool_calls: None,

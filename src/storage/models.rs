@@ -1,6 +1,6 @@
 use diesel::prelude::*;
 
-use super::schema::{sessions, threads, turn_tool_calls, turns};
+use super::schema::{attachments, sessions, threads, turn_tool_calls, turns};
 
 // ── Session ──
 
@@ -78,6 +78,7 @@ pub struct TurnRow {
     pub error: Option<String>,
     pub current_tool_iterations: i32,
     pub draft_message_id: Option<String>,
+    pub attachments: String,
 }
 
 #[derive(Insertable)]
@@ -96,6 +97,7 @@ pub struct NewTurnRow<'a> {
     pub error: Option<&'a str>,
     pub current_tool_iterations: i32,
     pub draft_message_id: Option<&'a str>,
+    pub attachments: &'a str,
 }
 
 // ── ToolCall ──
@@ -103,7 +105,7 @@ pub struct NewTurnRow<'a> {
 #[derive(Queryable, Selectable)]
 #[diesel(table_name = turn_tool_calls)]
 pub struct ToolCallRow {
-    pub id: i32,
+    pub id: Option<i32>,
     pub turn_id: String,
     pub call_index: i32,
     pub name: String,
@@ -121,4 +123,30 @@ pub struct NewToolCallRow<'a> {
     pub parameters: &'a str,
     pub result: Option<&'a str>,
     pub error: Option<&'a str>,
+}
+
+// ── Attachment ──
+
+#[derive(Queryable, Selectable)]
+#[diesel(table_name = attachments)]
+pub struct AttachmentRow {
+    pub id: String,
+    pub kind: String,
+    pub mime_type: String,
+    pub filename: Option<String>,
+    pub size_bytes: Option<i32>,
+    pub source_url: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Insertable)]
+#[diesel(table_name = attachments)]
+pub struct NewAttachmentRow<'a> {
+    pub id: &'a str,
+    pub kind: &'a str,
+    pub mime_type: &'a str,
+    pub filename: Option<&'a str>,
+    pub size_bytes: Option<i32>,
+    pub source_url: Option<&'a str>,
+    pub created_at: &'a str,
 }

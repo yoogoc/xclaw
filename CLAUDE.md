@@ -47,18 +47,28 @@ cargo clippy
 
 ```
 src/
-├── main.rs           # Application entry point
-├── lib.rs            # Module exports
-├── agent/            # Agent core logic and heartbeat monitoring
-│   └── heartbeat.rs  # Stalled task detection
-├── channels/         # Communication channel integrations
-├── chat_room/        # Chat room abstraction layer
-├── hooks/            # Event hook system
-├── llm_providers/    # LLM provider abstractions
-├── memory/           # Memory/state management
-├── skills/           # Agent skill system
-├── supervisor/       # Supervisor/orchestrator pattern
-└── tools/            # Tool calling system
+├── main.rs              # Application entry point
+├── lib.rs               # Module exports
+├── agent/               # Agent core logic and heartbeat monitoring
+│   └── heartbeat.rs     # Stalled task detection
+├── attachment/          # AttachmentManager (OpenDAL, 待实现)
+├── binding/             # Channel→Session 边界层
+│   ├── mod.rs           # process_user_input(), 类型转换
+│   └── message_convert.rs # MessageAttachment→rig SDK UserContent
+├── channel/             # 通道层 (Discord/Slack/Matrix 集成)
+│   └── message/         # IncomingMessage, IncomingAttachment
+├── config/              # 配置加载
+├── message/             # 消息域类型
+│   ├── message.rs       # ChatMessage (含 attachments)
+│   └── attachment.rs    # MessageAttachment, MediaKind, base64 serde
+├── session/             # 会话管理
+│   ├── manager.rs       # SessionManager, process_turn()
+│   └── turn.rs          # Turn (含 attachments)
+├── hooks/               # Event hook system
+├── memory/              # Memory/state management
+├── skills/              # Agent skill system
+├── supervisor/          # Supervisor/orchestrator pattern
+└── tools/               # Tool calling system
 ```
 
 ### Key Technical Decisions
@@ -106,3 +116,4 @@ The `design/` directory contains comprehensive design documents:
 - `heartbeat.md`: Task monitoring and stall detection
 - `workflows.md`: Complete interaction examples
 - `mention-protocol.md`: @mention handling
+- `attachment.md`: Attachment system (persist-first, AttachmentManager, storage backends, LLM multimodal)
