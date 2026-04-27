@@ -70,6 +70,7 @@ pub struct ChannelConfig {
     #[serde(rename = "type")]
     pub channel_type: String,
     pub token: String,
+    pub proxy: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

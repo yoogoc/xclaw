@@ -95,6 +95,7 @@ async fn create_channel(channel_config: &xclaw::config::ChannelConfig) -> Result
         "discord" => {
             let channel = DiscordChannel::new(DiscordConfig {
                 token: channel_config.token.clone(),
+                proxy: channel_config.proxy.clone(),
                 channel_id: ChannelId::new(1478672180664598674),
                 require_mention: false,
             })

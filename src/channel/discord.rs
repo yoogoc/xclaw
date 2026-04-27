@@ -23,6 +23,7 @@ pub struct DiscordChannel {
 #[derive(Clone)]
 pub struct DiscordConfig {
     pub token: String,
+    pub proxy: Option<String>,
     pub channel_id: ChannelId,
     pub require_mention: bool,
 }
@@ -133,12 +134,19 @@ impl Channel for DiscordChannel {
             config: self.config.clone(),
         };
 
-        let http = HttpBuilder::new(&self.config.token)
-            // .proxy("http://127.0.0.1:7890")
-            // .ratelimiter_disabled(true)
-            .build();
+        let mut http_builder = HttpBuilder::new(&self.config.token);
 
-        let builder = ClientBuilder::new_with_http(http, intents);
+        if let Some(proxy) = &self.config.proxy {
+            http_builder = http_builder.proxy(proxy);
+        }
+
+        let http = http_builder.build();
+
+        let mut builder = ClientBuilder::new_with_http(http, intents);
+
+        if let Some(proxy) = &self.config.proxy {
+            builder = builder.ws_proxy(proxy);
+        }
 
         let mut client = builder.event_handler(handler).await?;
 
