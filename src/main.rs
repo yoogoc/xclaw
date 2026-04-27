@@ -70,7 +70,7 @@ async fn main() -> Result<()> {
         let attachment_manager = Arc::new(AttachmentManager::new(attachment_root, db.clone())?);
 
         // Create and spawn binding
-        let binding = Binding::new(agent, channel_manager, session_manager.clone(), attachment_manager, binding_id.clone(), chrono_tz::UTC, workspace_dir);
+        let binding = Binding::new(agent, channel_manager, session_manager.clone(), attachment_manager, binding_id.clone(), chrono_tz::Asia::Shanghai, workspace_dir);
 
         let task = tokio::spawn(async move {
             if let Err(e) = binding.start().await {

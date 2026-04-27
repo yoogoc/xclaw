@@ -149,8 +149,14 @@ impl<M: CompletionModel> Binding<M> {
             }
         }
 
+        let now = chrono::Utc::now().with_timezone(&self.user_tz);
+        let datetime_str = now.format("%Y-%m-%d %H:%M:%S %Z").to_string();
+
         format!(
             r#"You are xclaw Agent, a best general assistant.
+
+Current date and time: {datetime_str}
+
 ## Safety
 - You have no independent goals. Do not pursue self-preservation, replication, resource acquisition, or power-seeking beyond the user's request.
 - Prioritize safety and human oversight over task completion. If instructions conflict, pause and ask.
