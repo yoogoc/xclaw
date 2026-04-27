@@ -6,7 +6,7 @@ use crate::utils::path::normalize_path;
 use crate::workspace::paths;
 use futures::StreamExt;
 use rig::OneOrMany;
-use rig::completion::{CompletionModel, CompletionRequest, ToolDefinition};
+use rig::completion::{CompletionModel, CompletionRequest, GetTokenUsage, ToolDefinition};
 use rig::message::{Message, ReasoningContent};
 use rig::streaming::StreamedAssistantContent;
 use std::sync::Arc;
@@ -57,8 +57,8 @@ impl<M: CompletionModel> Binding<M> {
                     StreamedAssistantContent::ToolCall { tool_call, internal_call_id: _ } => {
                         debug!("Received ToolCall: {}, parameter: {:?}", tool_call.function.name, tool_call.function.arguments);
                     }
-                    StreamedAssistantContent::ToolCallDelta { id, internal_call_id: _, content } => {
-                        debug!("Received ToolCallDelta: {}, parameter: {:?}", id, content);
+                    StreamedAssistantContent::ToolCallDelta { id: _, internal_call_id: _, content: _ } => {
+                        // debug!("Received ToolCallDelta: {}, parameter: {:?}", id, content);
                     }
                     StreamedAssistantContent::Reasoning(reasoning) => {
                         for content in reasoning.content {
@@ -90,7 +90,9 @@ impl<M: CompletionModel> Binding<M> {
                         }
                     }
                     StreamedAssistantContent::ReasoningDelta { .. } => {}
-                    StreamedAssistantContent::Final(_) => {}
+                    StreamedAssistantContent::Final(usage) => {
+                        debug!("Received Final: {:?}", usage.token_usage());
+                    }
                 },
                 Err(e) => return Err(e.into()),
             }
@@ -102,8 +104,18 @@ impl<M: CompletionModel> Binding<M> {
         Ok(LLMResponse::from(stream.choice))
     }
 
-    async fn convert_available_tool(&self) -> anyhow::Result<Vec<ToolDefinition>> {
+    pub(crate) async fn convert_available_tool(&self) -> anyhow::Result<Vec<ToolDefinition>> {
         let tools = self.tool_registry.all_tools().await;
+        // Merge tools from active skills
+        // let active_tool_names = self.skill_manager.active_tool_names().await;
+        // if !active_tool_names.is_empty() {
+        //     let agent_tools = self.agent.tools().await;
+        //     for name in &active_tool_names {
+        //         if let Some(tool) = agent_tools.get(name) {
+        //             tools.push(Arc::clone(tool));
+        //         }
+        //     }
+        // }
 
         let tool_definitions = tools
             .iter()
@@ -147,6 +159,17 @@ impl<M: CompletionModel> Binding<M> {
             {
                 parts.push(format!("{}\n\n{}", header, doc));
             }
+        }
+
+        // Inject available skills catalog
+        let catalog = self.skill_manager.available_catalog();
+        if !catalog.is_empty() {
+            parts.push(format!("## Available Skills\n以下 Skill 可通过 skill_load 工具按需激活：\n{}", catalog));
+        }
+
+        // Inject active skill prompts
+        for (name, prompt) in self.skill_manager.active_prompts().await {
+            parts.push(format!("## Skill: {}\n{}", name, prompt));
         }
 
         let now = chrono::Utc::now().with_timezone(&self.user_tz);

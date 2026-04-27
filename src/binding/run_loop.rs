@@ -24,9 +24,9 @@ impl<M: CompletionModel> Binding<M> {
                     let all_auto = approvals.iter().all(|a| a.auto_approved);
 
                     if all_auto {
-                        // Execute tools and continue
+                        // Execute tools and exit loop, execute_tools with recursive
                         self.execute_tools(session.clone(), thread_id, &approvals).await?;
-                        continue;
+                        break;
                     } else {
                         // Need approval
                         let mut sess = session.lock().await;
@@ -102,7 +102,7 @@ impl<M: CompletionModel> Binding<M> {
     }
 
     async fn prepare_tool_approvals(&self, session: Arc<Mutex<Session>>, tool_calls: &[crate::message::ToolCall]) -> anyhow::Result<Vec<Box<PendingApproval>>> {
-        let tools = self.agent.tools().await;
+        let tools = self.tools().await;
         let mut approvals = vec![];
 
         let is_auto_approved = {
@@ -136,7 +136,7 @@ impl<M: CompletionModel> Binding<M> {
     }
 
     async fn execute_tools(&self, session: Arc<Mutex<Session>>, thread_id: Uuid, approvals: &[Box<PendingApproval>]) -> anyhow::Result<()> {
-        let tools = self.agent.tools().await;
+        let tools = self.tools().await;
 
         for approval in approvals {
             if let Some(tool) = tools.get(&approval.tool_name) {
@@ -153,7 +153,7 @@ impl<M: CompletionModel> Binding<M> {
                 }
 
                 // Execute
-                debug!("execute tool!");
+                debug!("execute tool: {}, parameters: {}", tool.name(), approval.parameters.clone());
                 let result = tool.execute(approval.parameters.clone()).await;
 
                 // Record result
@@ -169,7 +169,6 @@ impl<M: CompletionModel> Binding<M> {
                                     turn.record_tool_result(val.clone());
                                     drop(sess);
                                     self.session_manager.persist_tool_result(&turn_id, idx, Some(&val), None).await;
-                                    self.call_llm(session.clone(), thread_id).await?;
                                 }
                                 Err(e) => {
                                     let err_str = e.to_string();
@@ -184,6 +183,7 @@ impl<M: CompletionModel> Binding<M> {
             }
         }
 
+        Box::pin(self.run_loop(session.clone(), thread_id)).await?;
         Ok(())
     }
 }

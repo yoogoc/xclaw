@@ -12,6 +12,8 @@ use xclaw::config::Config;
 use xclaw::hooks::HookRegistry;
 use xclaw::llm::LlmProvider;
 use xclaw::session::SessionManager;
+use xclaw::skills::SkillManager;
+use xclaw::skills::skill_load_tool::SkillLoadTool;
 use xclaw::storage::Database;
 use xclaw::tools::ToolRegistry;
 use xclaw::utils::path::default_base_dir;
@@ -69,8 +71,18 @@ async fn main() -> Result<()> {
         let attachment_root = workspace_dir.join("attachments");
         let attachment_manager = Arc::new(AttachmentManager::new(attachment_root, db.clone())?);
 
+        // Create skill manager
+        let skills_dir = workspace_dir.join("skills");
+        let mut skill_manager = SkillManager::new(skills_dir);
+        skill_manager.scan();
+        let skill_manager = Arc::new(skill_manager);
+
+        // Create tool registry with skill_load tool
+        let tool_registry = Arc::new(ToolRegistry::new());
+        tool_registry.register_sync(Arc::new(SkillLoadTool::new(Arc::clone(&skill_manager))));
+
         // Create and spawn binding
-        let binding = Binding::new(agent, channel_manager, session_manager.clone(), attachment_manager, binding_id.clone(), chrono_tz::Asia::Shanghai, workspace_dir);
+        let binding = Binding::new(agent, channel_manager, session_manager.clone(), attachment_manager, skill_manager, tool_registry, binding_id.clone(), chrono_tz::Asia::Shanghai, workspace_dir);
 
         let task = tokio::spawn(async move {
             if let Err(e) = binding.start().await {
@@ -130,7 +142,6 @@ fn create_agent(
 
     let workspace = Arc::new(xclaw::agent::workspace::Workspace::new(PathBuf::from("workspace")));
     let hooks = Arc::new(HookRegistry::new());
-    let tools = Arc::new(ToolRegistry::new());
 
     Ok(Arc::new(Agent {
         storage: None,
@@ -139,7 +150,6 @@ fn create_agent(
         workspace,
         skills: None,
         hooks,
-        tools,
         heartbeat: None,
         config: xclaw::agent::config::AgentLoopConfig {
             max_iterations: 10,

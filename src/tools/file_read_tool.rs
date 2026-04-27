@@ -31,8 +31,7 @@ impl Tool for FileRead {
     }
 
     fn description(&self) -> &str {
-        "Read a file from the LOCAL FILESYSTEM. NOT for workspace memory paths \
-         (use memory_read for those). Returns file content as text. \
+        "Read a file from the LOCAL FILESYSTEM. Returns file content as text. \
          For large files, you can specify offset and limit to read a portion."
     }
 
