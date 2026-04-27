@@ -1,7 +1,7 @@
 use crate::message::{ChatMessage, Role, ToolCall};
 use crate::session::approval::PendingApproval;
 use crate::session::turn::Turn;
-use crate::utils::truncate_preview;
+// use crate::utils::truncate_preview;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -184,11 +184,9 @@ impl Thread {
 
     /// Get all messages for context building, including tool call history.
     ///
-    /// Emits the full LLM-compatible message sequence per turn:
-    /// `user → [assistant_with_tool_calls → tool_result*] → assistant`
-    ///
-    /// This ensures the LLM sees prior tool executions and won't re-attempt
-    /// completed actions in subsequent turns.
+    /// Emits the LLM-compatible message sequence per turn, with each tool call
+    /// paired 1:1 with its result:
+    /// `user → [assistant(call) → result]* → assistant`
     pub fn messages(&self) -> Vec<ChatMessage> {
         let mut messages = Vec::new();
         for turn in &self.turns {
@@ -198,41 +196,34 @@ impl Thread {
                 messages.push(ChatMessage::user_with_attachments(&turn.user_input, turn.attachments.clone()));
             }
 
-            if !turn.tool_calls.is_empty() {
-                // Build ToolCall objects with synthetic stable IDs
-                let tool_calls: Vec<ToolCall> = turn
-                    .tool_calls
-                    .iter()
-                    .enumerate()
-                    .map(|(i, tc)| ToolCall {
-                        id: format!("turn{}_{}", turn.turn_number, i),
-                        name: tc.name.clone(),
-                        arguments: tc.parameters.clone(),
-                    })
-                    .collect();
+            for (i, tc) in turn.tool_calls.iter().enumerate() {
+                let call_id = format!("turn{}_{}", turn.turn_number, i);
 
-                // Assistant message declaring the tool calls (no text content)
-                messages.push(ChatMessage::assistant_with_tool_calls(None, tool_calls));
+                // Assistant message with a single tool call
+                let tool_call = ToolCall {
+                    id: call_id.clone(),
+                    name: tc.name.clone(),
+                    arguments: tc.parameters.clone(),
+                };
+                messages.push(ChatMessage::assistant_with_tool_calls(None, vec![tool_call]));
 
-                // Individual tool result messages, truncated to limit context size.
-                for (i, tc) in turn.tool_calls.iter().enumerate() {
-                    let call_id = format!("turn{}_{}", turn.turn_number, i);
-                    let content = if let Some(ref err) = tc.error {
-                        // .error already contains the full error text;
-                        // pass through without wrapping to avoid double-prefix.
-                        truncate_preview(err, 1000)
-                    } else if let Some(ref res) = tc.result {
-                        let raw = match res {
-                            serde_json::Value::String(s) => s.clone(),
-                            other => other.to_string(),
-                        };
-                        truncate_preview(&raw, 1000)
-                    } else {
-                        "OK".to_string()
+                // Corresponding tool result
+                let content = if let Some(ref err) = tc.error {
+                    // truncate_preview(err, 1000)
+                    err.to_string()
+                } else if let Some(ref res) = tc.result {
+                    let raw = match res {
+                        serde_json::Value::String(s) => s.clone(),
+                        other => other.to_string(),
                     };
-                    messages.push(ChatMessage::tool_result(call_id, &tc.name, content));
-                }
+                    // truncate_preview(&raw, 1000)
+                    raw.to_string()
+                } else {
+                    "OK".to_string()
+                };
+                messages.push(ChatMessage::tool_result(call_id, &tc.name, content));
             }
+
             if let Some(ref response) = turn.response {
                 messages.push(ChatMessage::assistant(response));
             }

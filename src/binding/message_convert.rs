@@ -5,7 +5,8 @@ use base64::engine::general_purpose::STANDARD;
 use rig::OneOrMany;
 use rig::completion::message::{
     AssistantContent, Audio, AudioMediaType, Document, DocumentMediaType, DocumentSourceKind,
-    Image, ImageMediaType, Message as RigMessage, MimeType, Text, UserContent,
+    Image, ImageMediaType, Message as RigMessage, MimeType, Text, ToolCall as RigToolCall,
+    ToolFunction, ToolResult, ToolResultContent, UserContent,
 };
 
 async fn attachment_to_user_content(a: &MessageAttachment, mgr: &AttachmentManager) -> Option<UserContent> {
@@ -54,10 +55,40 @@ pub async fn to_rig_message(msg: &ChatMessage, mgr: &AttachmentManager) -> anyho
                 content: OneOrMany::many(parts).unwrap_or_else(|_| OneOrMany::one(UserContent::Text(Text { text: msg.content.clone() }))),
             })
         }
-        ChatRole::Assistant | ChatRole::Tool => Ok(RigMessage::Assistant {
-            id: None,
-            content: OneOrMany::one(AssistantContent::Text(Text { text: msg.content.clone() })),
-        }),
+        ChatRole::Assistant => {
+            if let Some(ref tool_calls) = msg.tool_calls {
+                let mut contents: Vec<AssistantContent> = Vec::new();
+                if !msg.content.is_empty() {
+                    contents.push(AssistantContent::Text(Text { text: msg.content.clone() }));
+                }
+                for tc in tool_calls {
+                    contents.push(AssistantContent::ToolCall(RigToolCall::new(
+                        tc.id.clone(),
+                        ToolFunction::new(tc.name.clone(), tc.arguments.clone()),
+                    )));
+                }
+                Ok(RigMessage::Assistant {
+                    id: None,
+                    content: OneOrMany::many(contents)
+                        .unwrap_or_else(|_| OneOrMany::one(AssistantContent::Text(Text { text: msg.content.clone() }))),
+                })
+            } else {
+                Ok(RigMessage::Assistant {
+                    id: None,
+                    content: OneOrMany::one(AssistantContent::Text(Text { text: msg.content.clone() })),
+                })
+            }
+        }
+        ChatRole::Tool => {
+            let tool_call_id = msg.tool_call_id.clone().unwrap_or_default();
+            Ok(RigMessage::User {
+                content: OneOrMany::one(UserContent::ToolResult(ToolResult {
+                    id: tool_call_id,
+                    call_id: None,
+                    content: OneOrMany::one(ToolResultContent::text(&msg.content)),
+                })),
+            })
+        }
     }
 }
 

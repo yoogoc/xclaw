@@ -53,7 +53,8 @@ design/
 ├── tools.md              # 工具系统
 ├── heartbeat.md          # 心跳机制
 ├── workflows.md          # 完整工作流程
-└── attachment.md         # 附件系统（双层类型、binding 转换、LLM 多模态）
+├── attachment.md         # 附件系统（双层类型、binding 转换、LLM 多模态）
+└── skill-system.md      # Skill 系统（按需加载、混合模式、专用 Tool）
 ```
 
 ### 1.4 技术栈
@@ -112,3 +113,4 @@ design/
 - [心跳机制](heartbeat.md) - 任务监控和停滞检测
 - [工作流程](workflows.md) - 完整的交互流程示例
 - [附件系统](attachment.md) - 双层类型架构、binding 转换、LLM 多模态处理
+- [Skill 系统](skill-system.md) - 按需加载的混合能力单元，通过专用 Tool 动态激活

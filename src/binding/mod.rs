@@ -5,13 +5,15 @@ mod loop_type;
 mod message_convert;
 pub mod run_loop;
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 use crate::agent::Agent;
 use crate::attachment::AttachmentManager;
 use crate::binding::intent::Intent;
 use crate::channel::{ChannelManager, IncomingMessage};
 use crate::session::{Session, SessionManager, ThreadState};
-use crate::tools::ToolRegistry;
+use crate::skills::SkillManager;
+use crate::tools::{Tool, ToolRegistry};
 use futures::StreamExt;
 use rig::completion::CompletionModel;
 use std::sync::Arc;
@@ -24,6 +26,7 @@ pub struct Binding<M: CompletionModel> {
     session_manager: Arc<SessionManager>,
     tool_registry: Arc<ToolRegistry>,
     pub(crate) attachment_manager: Arc<AttachmentManager>,
+    pub(crate) skill_manager: Arc<SkillManager>,
     binding_id: String,
     user_tz: chrono_tz::Tz,
 
@@ -31,13 +34,14 @@ pub struct Binding<M: CompletionModel> {
 }
 
 impl<M: CompletionModel> Binding<M> {
-    pub fn new(agent: Arc<Agent<M>>, channel: Arc<ChannelManager>, session_manager: Arc<SessionManager>, attachment_manager: Arc<AttachmentManager>, binding_id: impl Into<String>, tz: chrono_tz::Tz, workspace_dir: PathBuf) -> Self {
+    pub fn new(agent: Arc<Agent<M>>, channel: Arc<ChannelManager>, session_manager: Arc<SessionManager>, attachment_manager: Arc<AttachmentManager>, skill_manager: Arc<SkillManager>, tool_registry: Arc<ToolRegistry>, binding_id: impl Into<String>, tz: chrono_tz::Tz, workspace_dir: PathBuf) -> Self {
         Self {
             agent,
             channel,
             session_manager,
-            tool_registry: Arc::new(ToolRegistry::new()),
+            tool_registry,
             attachment_manager,
+            skill_manager,
             binding_id: binding_id.into(),
             user_tz: tz,
             workspace_dir,
@@ -159,5 +163,9 @@ impl<M: CompletionModel> Binding<M> {
             self.session_manager.thread_fail_turn(session.clone(), thread_id, "Tool approval rejected").await;
             Ok(())
         }
+    }
+    
+    pub async fn tools(&self) -> HashMap<String, Arc<dyn Tool>> {
+        self.tool_registry.tools().await
     }
 }
