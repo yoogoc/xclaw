@@ -31,6 +31,7 @@ async fn test_discord_channel() {
         token: "test_token".to_string(),
         channel_id: ChannelId::new(0),
         require_mention: false,
+        proxy: None,
     };
 
     let channel = DiscordChannel::new(config).await.unwrap();

@@ -30,7 +30,8 @@ diesel_migrations = "2.3"
 rig-core = { version = "0.31.0", features = ["all"] }
 
 # channel integration
-serenity = "0.12.5"
+#serenity = "0.12.5"
+serenity = { git = "https://github.com/yoogoc/serenity", branch = "ws-proxy" }
 
 # log
 log = "0.4.29"
